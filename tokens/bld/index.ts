@@ -24,11 +24,20 @@ async function createBldToken(
   connection: web3.Connection,
   payer: web3.Keypair
 ) {
+  const programId = new web3.PublicKey(
+    "2pE13XRXtstNEuBZ912ooGAnTQhabLYm57cFJW7tQXvK"
+  )
+
+  const [mintAuth] = await web3.PublicKey.findProgramAddress(
+    [Buffer.from("mint")],
+    programId
+  )
+
   const tokenMint = await token.createMint(
     connection,
     payer,
-    payer.publicKey,
-    payer.publicKey,
+    mintAuth,
+    mintAuth,
     2
   )
 
@@ -70,7 +79,7 @@ async function createBldToken(
     {
       metadata: metadataPda,
       mint: tokenMint,
-      mintAuthority: payer.publicKey,
+      mintAuthority: mintAuth,
       payer: payer.publicKey,
       updateAuthority: payer.publicKey,
     },

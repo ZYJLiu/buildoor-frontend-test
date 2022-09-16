@@ -116,6 +116,14 @@ const StakeStatus: FC<Props> = (props) => {
           connection
         )
 
+        const latestBlockHash = await connection.getLatestBlockhash()
+
+        await connection.confirmTransaction({
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: transactionSignature,
+        })
+
         console.log("Stake tx:")
         console.log(
           `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
@@ -170,6 +178,14 @@ const StakeStatus: FC<Props> = (props) => {
           transaction,
           connection
         )
+
+        const latestBlockHash = await connection.getLatestBlockhash()
+
+        await connection.confirmTransaction({
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: transactionSignature,
+        })
 
         console.log("Unstake tx:")
         console.log(

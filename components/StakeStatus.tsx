@@ -31,7 +31,7 @@ const StakeStatus: FC<Props> = (props) => {
   const program = workspace.program
 
   const { connection } = useConnection()
-  const { publicKey } = useWallet()
+  const { publicKey, sendTransaction } = useWallet()
 
   const metaplex = useMemo(() => {
     return Metaplex.make(connection)
@@ -55,6 +55,7 @@ const StakeStatus: FC<Props> = (props) => {
         program.programId
       )
 
+      // check if NFT staked
       try {
         let stakeStateAccount = await program?.account.userStakeInfo.fetch(
           stakeStatePda
@@ -64,16 +65,9 @@ const StakeStatus: FC<Props> = (props) => {
           (Object.keys(stakeStateAccount.stakeState) as unknown as string) ==
           "staked"
         ) {
-          console.log("test", stakeStateAccount.stakeState)
           setStakeStatus(true)
         }
       } catch (error: unknown) {}
-
-      // console.log(nft.json?.image)
-      // console.log("test", nft.address.toString())
-
-      // let fetchResult = await fetch(props.nft.uri)
-      // let json = await fetchResult.json()
     }
   }
 
@@ -102,7 +96,7 @@ const StakeStatus: FC<Props> = (props) => {
           program.programId
         )
 
-        const txid = await program?.methods
+        const transaction = await program?.methods
           .stake()
           .accounts({
             // user: publicKey,
@@ -115,9 +109,17 @@ const StakeStatus: FC<Props> = (props) => {
             metadataProgram: METADATA_PROGRAM_ID,
             // systemProgram: SystemProgram.programId,
           })
-          .rpc()
+          .transaction()
+
+        const transactionSignature = await sendTransaction(
+          transaction,
+          connection
+        )
+
         console.log("Stake tx:")
-        console.log(`https://explorer.solana.com/tx/${txid}?cluster=devnet`)
+        console.log(
+          `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+        )
 
         setStakeStatus(true)
       }
@@ -150,7 +152,7 @@ const StakeStatus: FC<Props> = (props) => {
           program.programId
         )
 
-        const unstakeTxid = await program?.methods
+        const transaction = await program?.methods
           .unstake()
           .accounts({
             // user: publicKey,
@@ -162,11 +164,16 @@ const StakeStatus: FC<Props> = (props) => {
             // tokenProgram: TOKEN_PROGRAM_ID,
             metadataProgram: METADATA_PROGRAM_ID,
           })
-          .rpc()
+          .transaction()
+
+        const transactionSignature = await sendTransaction(
+          transaction,
+          connection
+        )
 
         console.log("Unstake tx:")
         console.log(
-          `https://explorer.solana.com/tx/${unstakeTxid}?cluster=devnet`
+          `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
         )
 
         setStakeStatus(false)
@@ -204,7 +211,7 @@ const StakeStatus: FC<Props> = (props) => {
 
         let tokenAddress = await getAssociatedTokenAddress(mint, publicKey)
 
-        const redeemTx = await program.methods
+        const transaction = await program.methods
           .redeem()
           .accounts({
             // user: wallet.publicKey,
@@ -215,10 +222,17 @@ const StakeStatus: FC<Props> = (props) => {
             userStakeAta: tokenAddress,
             // tokenProgram: TOKEN_PROGRAM_ID,
           })
-          .rpc()
+          .transaction()
+
+        const transactionSignature = await sendTransaction(
+          transaction,
+          connection
+        )
 
         console.log("Redeem tx:")
-        console.log(`https://explorer.solana.com/tx/${redeemTx}?cluster=devnet`)
+        console.log(
+          `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+        )
       }
     },
     []

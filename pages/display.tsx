@@ -70,7 +70,7 @@ const Display: NextPage = () => {
 
         <HStack alignItems="top" spacing={10}>
           {nfts?.map((nft) => (
-            <StakeStatus nft={nft} />
+            <StakeStatus key={nft.address} nft={nft} />
           ))}
         </HStack>
       </VStack>

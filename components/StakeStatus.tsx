@@ -1,4 +1,12 @@
-import { Button, VStack, Text, HStack, Image, Spacer } from "@chakra-ui/react"
+import {
+  Button,
+  VStack,
+  Text,
+  HStack,
+  Image,
+  Spacer,
+  Flex,
+} from "@chakra-ui/react"
 import { ArrowForwardIcon } from "@chakra-ui/icons"
 import {
   FC,
@@ -259,31 +267,60 @@ const StakeStatus: FC<Props> = (props) => {
   }, [])
 
   return (
-    <VStack alignItems="center">
+    <VStack
+      alignItems="center"
+      width="300px"
+      height="375px"
+      backgroundColor="white"
+      boxShadow="0px 4px 9px rgba(0, 0, 0, 0.25)"
+      borderRadius="8px"
+    >
       {nftData && (
         <Image
           key={props.nft.address}
           borderRadius="md"
           boxSize="250px"
+          margin="10px"
           src={nftData.json?.image}
           alt=""
         />
       )}
       {!stakeStatus ? (
-        <Button bgColor="accent" color="white" maxW="380px" onClick={stake}>
+        <Button
+          width="200px"
+          height="35px"
+          bgColor="accent"
+          color="white"
+          maxW="380px"
+          onClick={stake}
+        >
           <HStack>
             <Text>stake my buildoor</Text>
           </HStack>
         </Button>
       ) : (
         <VStack>
-          <Button bgColor="accent" color="white" maxW="380px" onClick={unstake}>
+          <Button
+            width="200px"
+            height="35px"
+            bgColor="accent"
+            color="white"
+            maxW="380px"
+            onClick={unstake}
+          >
             <HStack>
               <Text>unstake my buildoor</Text>
             </HStack>
           </Button>
 
-          <Button bgColor="accent" color="white" maxW="380px" onClick={redeem}>
+          <Button
+            width="200px"
+            height="35px"
+            bgColor="accent"
+            color="white"
+            maxW="380px"
+            onClick={redeem}
+          >
             <HStack>
               <Text>redeem $BLD</Text>
             </HStack>

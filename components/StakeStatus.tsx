@@ -248,7 +248,7 @@ const StakeStatus: FC<Props> = (props) => {
           program.programId
         )
 
-        let mint = new PublicKey("EEvAqBfznnTzpQqRu74t2X4uYkqTzASJ7zsaP2J2vX2q")
+        let mint = new PublicKey("398X9iYckL5xfMRi6uEGmSRX5ACWAmPmFe7j7pLEcxkL")
 
         let tokenAddress = await getAssociatedTokenAddress(mint, publicKey)
 

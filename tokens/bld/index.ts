@@ -14,6 +14,10 @@ import {
   createCreateMetadataAccountV2Instruction,
 } from "@metaplex-foundation/mpl-token-metadata"
 
+const programId = new web3.PublicKey(
+  "2pE13XRXtstNEuBZ912ooGAnTQhabLYm57cFJW7tQXvK"
+)
+
 const tokenName = "BUILD"
 const tokenSymbol = "BLD"
 const tokenDescription = "A token for buildoors"
@@ -24,23 +28,15 @@ async function createBldToken(
   connection: web3.Connection,
   payer: web3.Keypair
 ) {
-  const programId = new web3.PublicKey(
-    "2pE13XRXtstNEuBZ912ooGAnTQhabLYm57cFJW7tQXvK"
-  )
-
-  const [mintAuth] = await web3.PublicKey.findProgramAddress(
-    [Buffer.from("mint")],
-    programId
-  )
-
+  console.log("Creating Token Mint")
   const tokenMint = await token.createMint(
     connection,
     payer,
-    mintAuth,
-    mintAuth,
+    payer.publicKey,
+    payer.publicKey,
     2
   )
-
+  console.log("Establish Connection To Metaplex")
   const metaplex = Metaplex.make(connection)
     .use(keypairIdentity(payer))
     .use(
@@ -51,6 +47,7 @@ async function createBldToken(
       })
     )
 
+  console.log("Uploading Image")
   const imageBuffer = fs.readFileSync(tokenImagePath)
   const file = toMetaplexFile(imageBuffer, tokenImageFileName)
   const imageUri = await metaplex.storage().upload(file)
@@ -79,7 +76,7 @@ async function createBldToken(
     {
       metadata: metadataPda,
       mint: tokenMint,
-      mintAuthority: mintAuth,
+      mintAuthority: payer.publicKey,
       payer: payer.publicKey,
       updateAuthority: payer.publicKey,
     },
@@ -91,6 +88,7 @@ async function createBldToken(
     }
   )
 
+  console.log("Sending Transaction to Create Metadata Account")
   const transaction = new web3.Transaction()
   transaction.add(instruction)
 
@@ -100,6 +98,22 @@ async function createBldToken(
     [payer]
   )
 
+  const [mintAuth] = await web3.PublicKey.findProgramAddress(
+    [Buffer.from("mint")],
+    programId
+  )
+
+  console.log("Updating Mint Authority")
+  const updateMintAuthority = await token.setAuthority(
+    connection,
+    payer,
+    tokenMint,
+    payer.publicKey,
+    token.AuthorityType.MintTokens,
+    mintAuth
+  )
+
+  console.log("Saving Token Data to cashe.json")
   fs.writeFileSync(
     "tokens/bld/cache.json",
     JSON.stringify({
@@ -115,7 +129,6 @@ async function createBldToken(
 async function main() {
   const connection = new web3.Connection(web3.clusterApiUrl("devnet"))
   const payer = await initializeKeypair(connection)
-
   await createBldToken(connection, payer)
 }
 

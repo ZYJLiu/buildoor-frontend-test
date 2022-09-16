@@ -4,8 +4,15 @@ import {
   Text,
   HStack,
   Image,
-  Spacer,
-  Flex,
+  Spinner,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Center,
 } from "@chakra-ui/react"
 import { ArrowForwardIcon } from "@chakra-ui/icons"
 import {
@@ -34,6 +41,8 @@ const StakeStatus: FC<Props> = (props) => {
 
   const [nftData, setNftData] = useState<Nft>()
   const [stakeStatus, setStakeStatus] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const { isOpen, onOpen, onClose } = useDisclosure()
 
   const workspace = useWorkspace()
   const program = workspace.program
@@ -124,6 +133,8 @@ const StakeStatus: FC<Props> = (props) => {
           connection
         )
 
+        onOpen()
+
         const latestBlockHash = await connection.getLatestBlockhash()
 
         await connection.confirmTransaction({
@@ -131,6 +142,8 @@ const StakeStatus: FC<Props> = (props) => {
           lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
           signature: transactionSignature,
         })
+
+        onClose()
 
         console.log("Stake tx:")
         console.log(
@@ -187,6 +200,8 @@ const StakeStatus: FC<Props> = (props) => {
           connection
         )
 
+        onOpen()
+
         const latestBlockHash = await connection.getLatestBlockhash()
 
         await connection.confirmTransaction({
@@ -199,6 +214,8 @@ const StakeStatus: FC<Props> = (props) => {
         console.log(
           `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
         )
+
+        onClose()
 
         setStakeStatus(false)
       }
@@ -291,11 +308,10 @@ const StakeStatus: FC<Props> = (props) => {
           height="35px"
           bgColor="accent"
           color="white"
-          maxW="380px"
           onClick={stake}
         >
           <HStack>
-            <Text>stake my buildoor</Text>
+            <Text>Stake Buildoor</Text>
           </HStack>
         </Button>
       ) : (
@@ -305,11 +321,10 @@ const StakeStatus: FC<Props> = (props) => {
             height="35px"
             bgColor="accent"
             color="white"
-            maxW="380px"
             onClick={unstake}
           >
             <HStack>
-              <Text>unstake my buildoor</Text>
+              <Text>Unstake Buildoor</Text>
             </HStack>
           </Button>
 
@@ -318,15 +333,32 @@ const StakeStatus: FC<Props> = (props) => {
             height="35px"
             bgColor="accent"
             color="white"
-            maxW="380px"
             onClick={redeem}
           >
             <HStack>
-              <Text>redeem $BLD</Text>
+              <Text>Redeem $BLD</Text>
             </HStack>
           </Button>
         </VStack>
       )}
+      <Modal isOpen={isOpen} onClose={onClose} isCentered>
+        <ModalOverlay />
+        <ModalContent width="275px" height="150px">
+          <ModalHeader>Waiting Confirmation</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Center>
+              <Spinner
+                thickness="10px"
+                speed="1.5s"
+                emptyColor="gray.200"
+                color="blue.500"
+                size="xl"
+              />
+            </Center>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </VStack>
   )
 }

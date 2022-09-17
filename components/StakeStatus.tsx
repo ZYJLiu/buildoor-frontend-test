@@ -93,6 +93,7 @@ const StakeStatus: FC<Props> = (props) => {
         const stakeStateAccount = await program.account.userStakeInfo.fetch(
           stakeAccountAddress
         )
+        console.log(Object.keys(stakeStateAccount.stakeState))
 
         if (
           (Object.keys(stakeStateAccount.stakeState) as unknown as string) ==
@@ -104,7 +105,6 @@ const StakeStatus: FC<Props> = (props) => {
         }
 
         setStakeState(stakeStateAccount)
-        console.log(Object.keys(stakeStateAccount.stakeState))
       } catch (error: unknown) {}
     }
   }
@@ -129,11 +129,14 @@ const StakeStatus: FC<Props> = (props) => {
       onOpen()
 
       const latestBlockHash = await connection.getLatestBlockhash()
-      await connection.confirmTransaction({
-        blockhash: latestBlockHash.blockhash,
-        lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-        signature: transactionSignature,
-      })
+      await connection.confirmTransaction(
+        {
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: transactionSignature,
+        },
+        "finalized"
+      )
 
       onClose()
 
@@ -247,7 +250,7 @@ const StakeStatus: FC<Props> = (props) => {
     } else {
       setStakeRewards(0)
     }
-  }, [stakeState])
+  }, [stakeStatus, stakeState])
 
   return (
     <VStack

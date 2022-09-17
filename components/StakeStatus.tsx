@@ -13,6 +13,7 @@ import {
   ModalCloseButton,
   useDisclosure,
   Center,
+  Heading,
 } from "@chakra-ui/react"
 import {
   FC,
@@ -28,7 +29,6 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { Metaplex, Nft } from "@metaplex-foundation/js"
 import { PROGRAM_ID as METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata"
 import { useWorkspace } from "../context/Anchor"
-import { token } from "@project-serum/anchor/dist/cjs/utils"
 
 export interface Props {
   nft: any
@@ -39,6 +39,8 @@ const StakeStatus: FC<Props> = (props) => {
     "398X9iYckL5xfMRi6uEGmSRX5ACWAmPmFe7j7pLEcxkL"
   )
   const [stakeAccountAddress, setStakeAccountAddress] = useState<PublicKey>()
+  const [stakeState, setStakeState] = useState<any>()
+  const [stakeRewards, setStakeRewards] = useState(0)
   const [tokenAccountAddress, setTokenAccountAddress] = useState<PublicKey>()
   const [delegateAddress, setDelegateAddress] = useState<PublicKey>()
   const [nftData, setNftData] = useState<Nft>()
@@ -91,6 +93,7 @@ const StakeStatus: FC<Props> = (props) => {
         const stakeStateAccount = await program.account.userStakeInfo.fetch(
           stakeAccountAddress
         )
+        setStakeState(stakeStateAccount)
         console.log(Object.keys(stakeStateAccount.stakeState))
         if (
           (Object.keys(stakeStateAccount.stakeState) as unknown as string) ==
@@ -101,6 +104,15 @@ const StakeStatus: FC<Props> = (props) => {
           setStakeStatus(false)
         }
       } catch (error: unknown) {}
+    }
+  }
+
+  // check accumlated staking rewards
+  const checkStakeRewards = async () => {
+    if (stakeState) {
+      const slot = await connection.getSlot({ commitment: "confirmed" })
+      const timestamp = await connection.getBlockTime(slot)
+      setStakeRewards(timestamp! - stakeState.lastStakeRedeem.toNumber())
     }
   }
 
@@ -223,36 +235,54 @@ const StakeStatus: FC<Props> = (props) => {
     checkStakeStatus()
   }, [stakeAccountAddress])
 
+  useEffect(() => {
+    checkStakeRewards()
+  }, [stakeState])
+
+  useEffect(() => {
+    if (stakeStatus) {
+      const interval = setInterval(() => {
+        // checkStakeRewards()
+        setStakeRewards((stakeRewards) => stakeRewards + 1)
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [stakeRewards])
+
   return (
     <VStack
       alignItems="center"
       width="300px"
-      height="375px"
+      height="425px"
       backgroundColor="white"
       boxShadow="0px 4px 9px rgba(0, 0, 0, 0.25)"
       borderRadius="8px"
     >
       {nftData && (
-        <Image
-          borderRadius="md"
-          boxSize="250px"
-          margin="10px"
-          src={nftData.json?.image}
-          alt=""
-        />
+        <VStack>
+          <Heading size="md">{nftData.name}</Heading>
+          <Image
+            borderRadius="md"
+            boxSize="250px"
+            margin="10px"
+            src={nftData.json?.image}
+            alt=""
+          />
+        </VStack>
       )}
+      <Text as="b">$BLD Rewards: {stakeRewards}</Text>
       {!stakeStatus ? (
-        <Button
-          width="200px"
-          height="35px"
-          bgColor="accent"
-          color="white"
-          onClick={stake}
-        >
-          <HStack>
+        <VStack>
+          <Button
+            width="200px"
+            height="35px"
+            bgColor="accent"
+            color="white"
+            onClick={stake}
+          >
             <Text>Stake Buildoor</Text>
-          </HStack>
-        </Button>
+          </Button>
+        </VStack>
       ) : (
         <VStack>
           <Button

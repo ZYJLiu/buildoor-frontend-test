@@ -14,6 +14,7 @@ import {
   useDisclosure,
   Center,
 } from "@chakra-ui/react"
+import { ArrowForwardIcon } from "@chakra-ui/icons"
 import {
   FC,
   MouseEventHandler,
@@ -35,27 +36,32 @@ export interface Props {
 }
 
 const StakeStatus: FC<Props> = (props) => {
+  // console.log(props.nft)
+  // console.log(props.nft.address.toString())
+
+  const [nftData, setNftData] = useState<Nft>()
+  const [stakeAccountAddress, setStakeAccountAddress] = useState<PublicKey>()
+  const [tokenAccountAddress, setTokenAccountAddress] = useState<PublicKey>()
+  const [delegateAuthorityAddress, setDelegateAuthorityAddress] =
+    useState<PublicKey>()
   const stakeRewardMint = new PublicKey(
     "398X9iYckL5xfMRi6uEGmSRX5ACWAmPmFe7j7pLEcxkL"
   )
-  const [stakeAccountAddress, setStakeAccountAddress] = useState<PublicKey>()
-  const [tokenAccountAddress, setTokenAccountAddress] = useState<PublicKey>()
-  const [delegateAddress, setDelegateAddress] = useState<PublicKey>()
-  const [nftData, setNftData] = useState<Nft>()
 
   const [stakeStatus, setStakeStatus] = useState(false)
+  const [loading, setLoading] = useState(false)
   const { isOpen, onOpen, onClose } = useDisclosure()
+
+  const workspace = useWorkspace()
+  const program = workspace.program
 
   const { connection } = useConnection()
   const { publicKey, sendTransaction } = useWallet()
-  const workspace = useWorkspace()
-  const program = workspace.program
 
   const metaplex = useMemo(() => {
     return Metaplex.make(connection)
   }, [])
 
-  // fetch NFT data and derive PDAs
   const fetchNft = async () => {
     const nft = (await metaplex
       .nfts()
@@ -67,6 +73,7 @@ const StakeStatus: FC<Props> = (props) => {
     ).value[0].address
 
     setNftData(nft)
+    console.log(nft)
     setTokenAccountAddress(tokenAccount)
 
     if (program && publicKey) {
@@ -80,11 +87,10 @@ const StakeStatus: FC<Props> = (props) => {
         program.programId
       )
       setStakeAccountAddress(stakeStatePDA)
-      setDelegateAddress(delegatedAuthPDA)
+      setDelegateAuthorityAddress(delegatedAuthPDA)
     }
   }
 
-  // check stake status of NFT
   const checkStakeStatus = async () => {
     if (program && stakeAccountAddress) {
       try {
@@ -104,32 +110,27 @@ const StakeStatus: FC<Props> = (props) => {
     }
   }
 
-  // helper function to send and confirm transaction
   const sendAndConfirmTransaction = async (transaction: Transaction) => {
-    try {
-      const transactionSignature = await sendTransaction(
-        transaction,
-        connection
-      )
+    const transactionSignature = await sendTransaction(transaction, connection)
 
-      onOpen()
+    onOpen()
 
-      const latestBlockHash = await connection.getLatestBlockhash()
-      await connection.confirmTransaction({
-        blockhash: latestBlockHash.blockhash,
-        lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-        signature: transactionSignature,
-      })
+    const latestBlockHash = await connection.getLatestBlockhash()
 
-      onClose()
+    await connection.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: transactionSignature,
+    })
 
-      console.log("Stake tx:")
-      console.log(
-        `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
-      )
+    onClose()
 
-      checkStakeStatus()
-    } catch (error) {}
+    console.log("Stake tx:")
+    console.log(
+      `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+    )
+
+    checkStakeStatus()
   }
 
   const createStakeInstruction = async () => {
@@ -142,7 +143,7 @@ const StakeStatus: FC<Props> = (props) => {
           nftMint: nftData.mint.address,
           nftEdition: nftData.edition.address,
           // stakeState: stakeStatePda[0],
-          programAuthority: delegateAddress,
+          programAuthority: delegateAuthorityAddress,
           // tokenProgram: TOKEN_PROGRAM_ID,
           metadataProgram: METADATA_PROGRAM_ID,
           // systemProgram: SystemProgram.programId,
@@ -198,22 +199,26 @@ const StakeStatus: FC<Props> = (props) => {
 
   const stake: MouseEventHandler<HTMLButtonElement> = useCallback(async () => {
     const stakeInstruction = await createStakeInstruction()
-    sendAndConfirmTransaction(new Transaction().add(stakeInstruction!))
-  }, [nftData])
+    const transaction = new Transaction().add(stakeInstruction!)
+    sendAndConfirmTransaction(transaction)
+  }, [])
 
   const redeem: MouseEventHandler<HTMLButtonElement> = useCallback(async () => {
     const redeemInstruction = await createRedeemInstruction()
-    sendAndConfirmTransaction(new Transaction().add(redeemInstruction!))
-  }, [nftData])
+    const transaction = new Transaction().add(redeemInstruction!)
+    sendAndConfirmTransaction(transaction)
+  }, [])
 
   const unstake: MouseEventHandler<HTMLButtonElement> =
     useCallback(async () => {
       const redeemInstruction = await createRedeemInstruction()
       const unstakeInstruction = await createUnstakeInstruction()
-      sendAndConfirmTransaction(
-        new Transaction().add(redeemInstruction!, unstakeInstruction!)
+      const transaction = new Transaction().add(
+        redeemInstruction!,
+        unstakeInstruction!
       )
-    }, [nftData])
+      sendAndConfirmTransaction(transaction)
+    }, [])
 
   useEffect(() => {
     fetchNft()
@@ -234,6 +239,7 @@ const StakeStatus: FC<Props> = (props) => {
     >
       {nftData && (
         <Image
+          key={props.nft.address}
           borderRadius="md"
           boxSize="250px"
           margin="10px"

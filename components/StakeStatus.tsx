@@ -236,16 +236,20 @@ const StakeStatus: FC<Props> = (props) => {
   }, [stakeAccountAddress])
 
   useEffect(() => {
-    checkStakeRewards()
+    if (stakeStatus) {
+      checkStakeRewards()
+    }
   }, [stakeState])
 
   useEffect(() => {
     if (stakeStatus) {
       const interval = setInterval(() => {
-        // checkStakeRewards()
-        setStakeRewards((stakeRewards) => stakeRewards + 1)
+        checkStakeRewards()
+        // setStakeRewards((stakeRewards) => stakeRewards + 1)
       }, 1000)
       return () => clearInterval(interval)
+    } else {
+      setStakeRewards(0)
     }
   }, [stakeRewards])
 

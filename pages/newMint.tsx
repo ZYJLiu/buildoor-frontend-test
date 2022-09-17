@@ -27,6 +27,7 @@ import { useRouter } from "next/router"
 const NewMint: NextPage<NewMintProps> = ({ mint }) => {
   const [metadata, setMetadata] = useState<any>()
   const [nftData, setNftData] = useState<any>()
+  const [isStaking, setIsStaking] = useState(false)
   const { connection } = useConnection()
   const walletAdapter = useWallet()
   const { sendTransaction } = useWallet()
@@ -81,16 +82,27 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
           })
           .transaction()
 
-        const transactionSignature = await sendTransaction(
-          transaction,
-          connection
-        )
+        try {
+          setIsStaking(true)
+          const transactionSignature = await sendTransaction(
+            transaction,
+            connection
+          )
 
-        console.log("Stake tx:")
-        console.log(
-          `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
-        )
+          const latestBlockHash = await connection.getLatestBlockhash()
+          await connection.confirmTransaction({
+            blockhash: latestBlockHash.blockhash,
+            lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+            signature: transactionSignature,
+          })
 
+          console.log("Stake tx:")
+          console.log(
+            `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+          )
+        } catch (error) {
+          alert(error)
+        }
         router.push(`/display`)
       }
     }, [metadata])
@@ -118,6 +130,7 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
           color="white"
           maxW="380px"
           onClick={handleClick}
+          isLoading={isStaking}
         >
           <HStack>
             <Text>stake my buildoor</Text>

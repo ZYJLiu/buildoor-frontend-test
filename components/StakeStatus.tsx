@@ -93,8 +93,7 @@ const StakeStatus: FC<Props> = (props) => {
         const stakeStateAccount = await program.account.userStakeInfo.fetch(
           stakeAccountAddress
         )
-        setStakeState(stakeStateAccount)
-        console.log(Object.keys(stakeStateAccount.stakeState))
+
         if (
           (Object.keys(stakeStateAccount.stakeState) as unknown as string) ==
           "staked"
@@ -103,6 +102,9 @@ const StakeStatus: FC<Props> = (props) => {
         } else {
           setStakeStatus(false)
         }
+
+        setStakeState(stakeStateAccount)
+        console.log(Object.keys(stakeStateAccount.stakeState))
       } catch (error: unknown) {}
     }
   }
@@ -237,12 +239,6 @@ const StakeStatus: FC<Props> = (props) => {
 
   useEffect(() => {
     if (stakeStatus) {
-      checkStakeRewards()
-    }
-  }, [stakeState])
-
-  useEffect(() => {
-    if (stakeStatus) {
       const interval = setInterval(() => {
         checkStakeRewards()
         // setStakeRewards((stakeRewards) => stakeRewards + 1)
@@ -251,7 +247,7 @@ const StakeStatus: FC<Props> = (props) => {
     } else {
       setStakeRewards(0)
     }
-  }, [stakeRewards])
+  }, [stakeState])
 
   return (
     <VStack

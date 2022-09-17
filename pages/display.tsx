@@ -9,7 +9,7 @@ import StakeStatus from "../components/StakeStatus"
 
 const Display: NextPage = () => {
   const collectionAddress = new PublicKey(
-    "CBfXa2XDKcBxKkFmmjKX15JW84oMDATeBNyz9UMJ8o9g"
+    "5VCGS1JTp5RDM2EDpSJ4qJiwQRWy58dJk8bLjKyd7TvH"
   )
 
   const { connection } = useConnection()

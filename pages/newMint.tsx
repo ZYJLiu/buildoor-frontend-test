@@ -19,12 +19,20 @@ import {
 } from "react"
 import { ArrowForwardIcon } from "@chakra-ui/icons"
 import { PublicKey } from "@solana/web3.js"
-import { Metaplex, walletAdapterIdentity } from "@metaplex-foundation/js"
+import { Metaplex, walletAdapterIdentity, Nft } from "@metaplex-foundation/js"
+import { useWorkspace } from "../context/Anchor"
+import { PROGRAM_ID as METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata"
+import { useRouter } from "next/router"
 
 const NewMint: NextPage<NewMintProps> = ({ mint }) => {
   const [metadata, setMetadata] = useState<any>()
+  const [nftData, setNftData] = useState<any>()
   const { connection } = useConnection()
   const walletAdapter = useWallet()
+  const { sendTransaction } = useWallet()
+  const workspace = useWorkspace()
+  const program = workspace.program
+
   const metaplex = useMemo(() => {
     return Metaplex.make(connection).use(walletAdapterIdentity(walletAdapter))
   }, [connection, walletAdapter])
@@ -35,6 +43,7 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
       .findByMint({ mintAddress: mint })
       .run()
       .then((nft) => {
+        setNftData(nft)
         fetch(nft.uri)
           .then((res) => res.json())
           .then((metadata) => {
@@ -43,10 +52,48 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
       })
   }, [mint, metaplex, walletAdapter])
 
-  const handleClick: MouseEventHandler<HTMLButtonElement> = useCallback(
-    async (event) => {},
-    []
-  )
+  const router = useRouter()
+
+  const handleClick: MouseEventHandler<HTMLButtonElement> =
+    useCallback(async () => {
+      console.log(metadata)
+      if (program) {
+        const tokenAccount = (await connection.getTokenLargestAccounts(mint))
+          .value[0].address
+
+        const [delegatedAuthPDA] = await PublicKey.findProgramAddress(
+          [Buffer.from("authority")],
+          program.programId
+        )
+
+        const transaction = await program.methods
+          .stake()
+          .accounts({
+            // user: publicKey,
+            nftTokenAccount: tokenAccount,
+            nftMint: mint,
+            nftEdition: nftData.edition.address,
+            // stakeState: stakeStatePda[0],
+            programAuthority: delegatedAuthPDA,
+            // tokenProgram: TOKEN_PROGRAM_ID,
+            metadataProgram: METADATA_PROGRAM_ID,
+            // systemProgram: SystemProgram.programId,
+          })
+          .transaction()
+
+        const transactionSignature = await sendTransaction(
+          transaction,
+          connection
+        )
+
+        console.log("Stake tx:")
+        console.log(
+          `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+        )
+
+        router.push(`/display`)
+      }
+    }, [metadata])
 
   return (
     <MainLayout>

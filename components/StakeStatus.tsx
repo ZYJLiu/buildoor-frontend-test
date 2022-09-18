@@ -23,7 +23,7 @@ import {
   useMemo,
   useState,
 } from "react"
-import { PublicKey, StakeInstruction, Transaction } from "@solana/web3.js"
+import { PublicKey, Transaction } from "@solana/web3.js"
 import { getAssociatedTokenAddress } from "@solana/spl-token"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { Metaplex, Nft } from "@metaplex-foundation/js"
@@ -42,7 +42,6 @@ const StakeStatus: FC<Props> = (props) => {
   const [stakeState, setStakeState] = useState<any>()
   const [stakeRewards, setStakeRewards] = useState(0)
   const [tokenAccountAddress, setTokenAccountAddress] = useState<PublicKey>()
-  const [delegateAddress, setDelegateAddress] = useState<PublicKey>()
   const [nftData, setNftData] = useState<Nft>()
 
   const [stakeStatus, setStakeStatus] = useState(false)
@@ -57,13 +56,15 @@ const StakeStatus: FC<Props> = (props) => {
     return Metaplex.make(connection)
   }, [])
 
-  // fetch NFT data and derive PDAs
+  // function to fetch NFT data and derive stateState account PDAs used for staking
   const fetchNft = async () => {
+    // use metaplex to load all data associated to the NFT (need edition address for staking/unstaking)
     const nft = (await metaplex
       .nfts()
       .load({ metadata: props.nft })
       .run()) as Nft
 
+    // find the token address currently holding the NFT
     const tokenAccount = (
       await connection.getTokenLargestAccounts(props.nft.mintAddress)
     ).value[0].address
@@ -72,17 +73,13 @@ const StakeStatus: FC<Props> = (props) => {
     setTokenAccountAddress(tokenAccount)
 
     if (program && publicKey) {
+      // derive stakeState account PDA
       const [stakeStatePDA] = await PublicKey.findProgramAddress(
-        [publicKey?.toBuffer(), tokenAccount.toBuffer()],
+        [publicKey.toBuffer(), tokenAccount.toBuffer()],
         program.programId
       )
 
-      const [delegatedAuthPDA] = await PublicKey.findProgramAddress(
-        [Buffer.from("authority")],
-        program.programId
-      )
       setStakeAccountAddress(stakeStatePDA)
-      setDelegateAddress(delegatedAuthPDA)
     }
   }
 
@@ -90,11 +87,13 @@ const StakeStatus: FC<Props> = (props) => {
   const checkStakeStatus = async () => {
     if (program && stakeAccountAddress) {
       try {
+        // fetch stakeState account data
         const stakeStateAccount = await program.account.userStakeInfo.fetch(
           stakeAccountAddress
         )
         console.log(Object.keys(stakeStateAccount.stakeState))
 
+        // set staking status
         if (
           (Object.keys(stakeStateAccount.stakeState) as unknown as string) ==
           "staked"
@@ -112,8 +111,11 @@ const StakeStatus: FC<Props> = (props) => {
   // check accumlated staking rewards
   const checkStakeRewards = async () => {
     if (stakeState) {
+      // get current solana clock time
       const slot = await connection.getSlot({ commitment: "confirmed" })
       const timestamp = await connection.getBlockTime(slot)
+
+      // calculate accumulated staking rewards
       setStakeRewards(timestamp! - stakeState.lastStakeRedeem.toNumber())
     }
   }
@@ -121,13 +123,17 @@ const StakeStatus: FC<Props> = (props) => {
   // helper function to send and confirm transaction
   const sendAndConfirmTransaction = async (transaction: Transaction) => {
     try {
+      // send transaction
       const transactionSignature = await sendTransaction(
         transaction,
         connection
       )
 
+      // open loading modal
       onOpen()
 
+      // wait for transaction confirmation
+      // using "finalized" otherwise switching between staking / unstaking sometimes doesn't work
       const latestBlockHash = await connection.getLatestBlockhash()
       await connection.confirmTransaction(
         {
@@ -138,6 +144,7 @@ const StakeStatus: FC<Props> = (props) => {
         "finalized"
       )
 
+      // close loading modal once transaction confirmation finalized
       onClose()
 
       console.log("Stake tx:")
@@ -145,10 +152,13 @@ const StakeStatus: FC<Props> = (props) => {
         `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
       )
 
+      // check status of stateState, which determines which buttons display
       checkStakeStatus()
     } catch (error) {}
   }
 
+  // instruction to stake NFT
+  // accounts commented out are accounts Anchor can infer using the IDL
   const createStakeInstruction = async () => {
     if (program && nftData) {
       const instruction = await program.methods
@@ -159,7 +169,7 @@ const StakeStatus: FC<Props> = (props) => {
           nftMint: nftData.mint.address,
           nftEdition: nftData.edition.address,
           // stakeState: stakeStatePda[0],
-          programAuthority: delegateAddress,
+          // programAuthority: delegateAddress,
           // tokenProgram: TOKEN_PROGRAM_ID,
           metadataProgram: METADATA_PROGRAM_ID,
           // systemProgram: SystemProgram.programId,
@@ -170,6 +180,8 @@ const StakeStatus: FC<Props> = (props) => {
     }
   }
 
+  // instruction to unstake NFT
+  // accounts commented out are accounts Anchor can infer using the IDL
   const createUnstakeInstruction = async () => {
     if (program && nftData) {
       const instruction = await program.methods
@@ -189,8 +201,11 @@ const StakeStatus: FC<Props> = (props) => {
     }
   }
 
+  // instruction to redeem staking rewards
+  // accounts commented out are accounts Anchor can infer using the IDL
   const createRedeemInstruction = async () => {
     if (program && publicKey) {
+      // get the user's token address for staking rewards
       const stakeRewardTokenAddress = await getAssociatedTokenAddress(
         stakeRewardMint,
         publicKey
@@ -213,16 +228,19 @@ const StakeStatus: FC<Props> = (props) => {
     }
   }
 
+  // send transaction to stake NFT
   const stake: MouseEventHandler<HTMLButtonElement> = useCallback(async () => {
     const stakeInstruction = await createStakeInstruction()
     sendAndConfirmTransaction(new Transaction().add(stakeInstruction!))
   }, [nftData])
 
+  // send transaction to redeem staking rewards
   const redeem: MouseEventHandler<HTMLButtonElement> = useCallback(async () => {
     const redeemInstruction = await createRedeemInstruction()
     sendAndConfirmTransaction(new Transaction().add(redeemInstruction!))
   }, [nftData])
 
+  // send transaction to redeem staking rewards and then unstake NFT
   const unstake: MouseEventHandler<HTMLButtonElement> =
     useCallback(async () => {
       const redeemInstruction = await createRedeemInstruction()
@@ -232,14 +250,18 @@ const StakeStatus: FC<Props> = (props) => {
       )
     }, [nftData])
 
+  // fetch NFT data on load
   useEffect(() => {
     fetchNft()
   }, [])
 
+  // check the stake status if stakeAccountAddress changes (should only run on load, after fetchNFT)
   useEffect(() => {
     checkStakeStatus()
   }, [stakeAccountAddress])
 
+  // check the stake rewards if statStatus is true, otherwise set stakeRewards to 0
+  // run if stateStatus or stakeState changes
   useEffect(() => {
     if (stakeStatus) {
       const interval = setInterval(() => {

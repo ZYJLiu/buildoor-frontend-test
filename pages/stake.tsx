@@ -26,6 +26,7 @@ import { Metaplex, walletAdapterIdentity } from "@metaplex-foundation/js"
 import { STAKE_MINT } from "../utils/constants"
 import { PROGRAM_ID as METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata"
 import { useWorkspace } from "../context/Anchor"
+import Lootbox from "../components/Lootbox"
 
 const ItemBox = ({
   children,
@@ -61,7 +62,7 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
   const walletAdapter = useWallet()
 
   const workspace = useWorkspace()
-  const program = workspace.program
+  const programStaking = workspace.programStaking
 
   // metaplex setup
   const metaplex = useMemo(() => {
@@ -70,8 +71,8 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
 
   // send stake transaction
   const handleStake = async () => {
-    if (program && nftData) {
-      const transaction = await program.methods
+    if (programStaking && nftData) {
+      const transaction = await programStaking.methods
         .stake()
         .accounts({
           nftTokenAccount: tokenAccountAddress,
@@ -88,14 +89,14 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
 
   // send redeem transaction
   const handleRedeem = async () => {
-    if (program && publicKey) {
+    if (programStaking && publicKey) {
       // get stake rewards token address
       const stakeRewardTokenAddress = await getAssociatedTokenAddress(
         STAKE_MINT,
         publicKey
       )
 
-      const transaction = await program.methods
+      const transaction = await programStaking.methods
         .redeem()
         .accounts({
           nftTokenAccount: tokenAccountAddress,
@@ -111,12 +112,12 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
 
   // send unstake transaction
   const handleUnstake = async () => {
-    if (publicKey && program) {
+    if (publicKey && programStaking) {
       const stakeRewardTokenAddress = await getAssociatedTokenAddress(
         STAKE_MINT,
         publicKey
       )
-      const transaction = await program.methods
+      const transaction = await programStaking.methods
         .unstake()
         .accounts({
           nftTokenAccount: tokenAccountAddress,
@@ -184,11 +185,11 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
 
     setTokenAccountAddress(tokenAccount)
 
-    if (program && publicKey) {
+    if (programStaking && publicKey) {
       // derive stakeState account PDA
       const [stakeStatePDA] = await PublicKey.findProgramAddress(
         [publicKey.toBuffer(), tokenAccount.toBuffer()],
-        program.programId
+        programStaking.programId
       )
 
       setStakeAccountAddress(stakeStatePDA)
@@ -197,12 +198,11 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
 
   // check stake status of NFT
   const checkStakeStatus = async () => {
-    if (program && stakeAccountAddress) {
+    if (programStaking && stakeAccountAddress) {
       try {
         // fetch stakeState account data
-        const stakeStateAccount = await program.account.userStakeInfo.fetch(
-          stakeAccountAddress
-        )
+        const stakeStateAccount =
+          await programStaking.account.userStakeInfo.fetch(stakeAccountAddress)
         console.log(Object.keys(stakeStateAccount.stakeState))
         setStakeState(stakeStateAccount)
 
@@ -308,50 +308,54 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
             </Text>
           </VStack>
           <VStack alignItems="flex-start" spacing={10}>
-            <VStack
-              bgColor="containerBg"
-              borderRadius="20px"
-              padding="20px 40px"
-              spacing={5}
-            >
-              <Text
-                bgColor="containerBgSecondary"
-                padding="4px 8px"
+            <HStack spacing={10}>
+              <VStack
+                bgColor="containerBg"
                 borderRadius="20px"
-                color="bodyText"
-                as="b"
-                fontSize="sm"
+                padding="20px 40px"
+                spacing={5}
               >
-                {isStaking ? `${stakeTime}` : "READY TO STAKE"}
-              </Text>
-              <VStack spacing={-1}>
-                <Text color="white" as="b" fontSize="4xl">
-                  {isStaking ? `${stakeRewards} $BLD` : "0 $BLD"}
+                <Text
+                  bgColor="containerBgSecondary"
+                  padding="4px 8px"
+                  borderRadius="20px"
+                  color="bodyText"
+                  as="b"
+                  fontSize="sm"
+                >
+                  {isStaking ? `${stakeTime}` : "READY TO STAKE"}
                 </Text>
-              </VStack>
-              {isStaking ? (
+                <VStack spacing={-1}>
+                  <Text color="white" as="b" fontSize="4xl">
+                    {isStaking ? `${stakeRewards} $BLD` : "0 $BLD"}
+                  </Text>
+                </VStack>
+                {isStaking ? (
+                  <Button
+                    onClick={handleRedeem}
+                    bgColor="buttonGreen"
+                    width="200px"
+                  >
+                    <Text as="b">Redeem $BLD</Text>
+                  </Button>
+                ) : (
+                  <Text color="bodyText" as="b">
+                    Earn $BLD by Staking
+                  </Text>
+                )}
                 <Button
-                  onClick={handleRedeem}
+                  onClick={isStaking ? handleUnstake : handleStake}
                   bgColor="buttonGreen"
                   width="200px"
                 >
-                  <Text as="b">Redeem $BLD</Text>
+                  <Text as="b">
+                    {isStaking ? "Unstake buildoor" : "Stake buildoor"}
+                  </Text>
                 </Button>
-              ) : (
-                <Text color="bodyText" as="b">
-                  Earn $BLD by Staking
-                </Text>
-              )}
-              <Button
-                onClick={isStaking ? handleUnstake : handleStake}
-                bgColor="buttonGreen"
-                width="200px"
-              >
-                <Text as="b">
-                  {isStaking ? "Unstake buildoor" : "Stake buildoor"}
-                </Text>
-              </Button>
-            </VStack>
+              </VStack>
+              <Lootbox />
+            </HStack>
+
             <HStack spacing={10}>
               <VStack alignItems="flex-start">
                 <Text color="white" as="b" fontSize="2xl">

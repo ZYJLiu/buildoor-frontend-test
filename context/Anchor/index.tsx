@@ -39,7 +39,7 @@ interface WorkSpace {
   provider?: AnchorProvider
   programStaking?: Program<AnchorNftStaking>
   programLootbox?: Program<Lootbox>
-  programSwitchboard?: Program<Idl>
+  programSwitchboard?: any
 }
 
 const WorkspaceProvider = ({ children }: any) => {
@@ -53,7 +53,7 @@ const WorkspaceProvider = ({ children }: any) => {
   const programStaking = new Program(StakingIDL as Idl, STAKING_PROGRAM_ID)
   const programLootbox = new Program(LootboxIDL as Idl, LOOTBOX_PROGRAM_ID)
 
-  let program = async function () {
+  async function program() {
     let response = await loadSwitchboardProgram(
       "devnet",
       connection,
@@ -61,6 +61,22 @@ const WorkspaceProvider = ({ children }: any) => {
     )
     return response
   }
+
+  useEffect(() => {
+    program().then((result) => {
+      setProgramSwitchboard(result)
+      console.log("result", result)
+    })
+  }, [connection])
+
+  // let program = async function () {
+  //   let response = await loadSwitchboardProgram(
+  //     "devnet",
+  //     connection,
+  //     ((provider as AnchorProvider).wallet as AnchorWallet).payer
+  //   )
+  //   return response
+  // }
 
   // const test = useMemo(
   //   () =>
@@ -80,27 +96,18 @@ const WorkspaceProvider = ({ children }: any) => {
   //   }
   // }
 
-  useEffect(() => {
-    program().then((result) => {
-      setProgramSwitchboard(result)
-      console.log("result", result)
-    })
-  }, [connection, wallet])
-
   // const programSwitchboard = new Program(
   //   SwitchboardIDL as unknown as Idl,
   //   SBV2_DEVNET_PID
   // )
 
-  var workspace = {
+  const workspace = {
     connection,
     provider,
     programStaking,
     programLootbox,
     programSwitchboard,
   }
-
-  console.log(workspace)
 
   return (
     <WorkspaceContext.Provider value={workspace}>

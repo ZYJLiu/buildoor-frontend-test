@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from "react"
 import {
   Program,
   AnchorProvider,
@@ -22,6 +29,7 @@ import {
   PermissionAccount,
   ProgramStateAccount,
   VrfAccount,
+  SwitchboardProgram,
 } from "@switchboard-xyz/switchboard-v2"
 
 const WorkspaceContext = createContext({})
@@ -31,7 +39,7 @@ interface WorkSpace {
   provider?: AnchorProvider
   programStaking?: Program<AnchorNftStaking>
   programLootbox?: Program<Lootbox>
-  programSwitchboard?: Program
+  programSwitchboard?: Program<Idl>
 }
 
 const WorkspaceProvider = ({ children }: any) => {
@@ -41,34 +49,58 @@ const WorkspaceProvider = ({ children }: any) => {
   const provider = new AnchorProvider(connection, wallet, {})
   setProvider(provider)
 
+  const [programSwitchboard, setProgramSwitchboard] = useState<any>()
   const programStaking = new Program(StakingIDL as Idl, STAKING_PROGRAM_ID)
   const programLootbox = new Program(LootboxIDL as Idl, LOOTBOX_PROGRAM_ID)
 
-  async function getIDL() {
-    const IDL = await Program.fetchIdl(SBV2_DEVNET_PID, provider)
-    return IDL
+  let program = async function () {
+    let response = await loadSwitchboardProgram(
+      "devnet",
+      connection,
+      ((provider as AnchorProvider).wallet as AnchorWallet).payer
+    )
+    return response
   }
 
-  const SwitchboardIDL = getIDL()
-  const programSwitchboard = new Program(
-    SwitchboardIDL as unknown as Idl,
-    SBV2_DEVNET_PID
-  )
+  // const test = useMemo(
+  //   () =>
+  //     program().then((result) => {
+  //       setProgramSwitchboard(result)
+  //     }),
+  //   [wallet]
+  // )
+  // async function getProgram() {
+  //   const switchboardProgram = await loadSwitchboardProgram(
+  //     "devnet",
+  //     connection,
+  //     ((provider as AnchorProvider).wallet as AnchorWallet).payer
+  //   )
+  //   if (switchboardProgram) {
+  //     return switchboardProgram
+  //   }
+  // }
 
-  // // Alternative
-  // const switchboardProgram = await loadSwitchboardProgram(
-  //   "devnet",
-  //   connection,
-  //   ((provider as AnchorProvider).wallet as AnchorWallet).payer
+  useEffect(() => {
+    program().then((result) => {
+      setProgramSwitchboard(result)
+      console.log("result", result)
+    })
+  }, [connection, wallet])
+
+  // const programSwitchboard = new Program(
+  //   SwitchboardIDL as unknown as Idl,
+  //   SBV2_DEVNET_PID
   // )
 
-  const workspace = {
+  var workspace = {
     connection,
     provider,
     programStaking,
     programLootbox,
     programSwitchboard,
   }
+
+  console.log(workspace)
 
   return (
     <WorkspaceContext.Provider value={workspace}>

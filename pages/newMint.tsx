@@ -31,7 +31,7 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
   const walletAdapter = useWallet()
   const { sendTransaction } = useWallet()
   const workspace = useWorkspace()
-  const program = workspace.program
+  const program = workspace.programStaking
 
   // metaplex setup
   const metaplex = useMemo(() => {
@@ -43,8 +43,9 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
     useCallback(async () => {
       if (program) {
         // get token account of NFT
-        const tokenAccount = (await connection.getTokenLargestAccounts(mint))
-          .value[0].address
+        const tokenAccount = (
+          await connection.getTokenLargestAccounts(new PublicKey(mint))
+        ).value[0].address
 
         // create stake transaction
         const transaction = await program.methods

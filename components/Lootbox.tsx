@@ -35,16 +35,17 @@ const Lootbox: FC = () => {
   const { connection } = useConnection()
   const walletAdapter = useWallet()
   const workspace = useWorkspace()
-  const programLootbox = workspace.programLootbox
+  const programLootbox = workspace.programStaking
   const programSwitchboard = workspace.programSwitchboard
   const provider = workspace.provider
 
   const router = useRouter()
 
   const switchboard = async () => {
-    console.log("test")
-
-    console.log(programSwitchboard)
+    // const IDL = await anchor.Program.fetchIdl(SBV2_DEVNET_PID, provider)
+    // console.log(IDL)
+    console.log("test", programSwitchboard)
+    console.log(programLootbox)
   }
 
   useEffect(() => {

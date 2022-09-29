@@ -98,7 +98,7 @@ const Lootbox: FC = () => {
 
       // find PDA used for our client state pubkey
       const [userState, userStateBump] = await PublicKey.findProgramAddress(
-        [publicKey!.toBytes(), vrfKeypair.publicKey.toBytes()],
+        [publicKey!.toBytes()],
         programLootbox!.programId
       )
       const [lootbox] = await anchor.web3.PublicKey.findProgramAddress(
@@ -135,7 +135,7 @@ const Lootbox: FC = () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: publicKey!,
           toPubkey: escrow,
-          lamports: 1 * LAMPORTS_PER_SOL,
+          lamports: 0.02 * LAMPORTS_PER_SOL,
         }),
         // sync wrapped SOL balance
         spl.createSyncNativeInstruction(escrow),
@@ -206,11 +206,13 @@ const Lootbox: FC = () => {
 
       const tx = new Transaction().add(...txnIxns)
 
-      const sig = await sendTransaction(tx, connection, {
+      const transactionSignature = await sendTransaction(tx, connection, {
         signers: [vrfKeypair],
       })
 
-      console.log(sig)
+      console.log(
+        `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+      )
     }
   }
 
@@ -243,7 +245,7 @@ const Lootbox: FC = () => {
 
       // find PDA used for our client state pubkey
       const [userState, userStateBump] = await PublicKey.findProgramAddress(
-        [publicKey!.toBytes(), vrfKeypair.publicKey.toBytes()],
+        [publicKey!.toBytes()],
         programLootbox!.programId
       )
 
@@ -378,12 +380,51 @@ const Lootbox: FC = () => {
 
       const tx = new Transaction().add(...txnIxns)
 
-      const sig = await sendTransaction(tx, connection)
-      console.log(sig)
+      const transactionSignature = await sendTransaction(tx, connection)
+      console.log(
+        `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+      )
 
       const result = await awaitCallback(programLootbox!, userState, 20_000)
 
-      console.log(`VrfClient Result: ${result}`)
+      console.log(`Randomness Result: ${result}`)
+      const account = await programLootbox!.account.userState.fetch(userState)
+      console.log("item mint:", account.mint.toBase58())
+    }
+  }
+
+  const mintRewards = async () => {
+    if (programSwitchboard && programLootbox) {
+      const [userState, userStateBump] = await PublicKey.findProgramAddress(
+        [publicKey!.toBytes()],
+        programLootbox.programId
+      )
+      const [mintAuth] = await PublicKey.findProgramAddress(
+        [Buffer.from("MINT_AUTH")],
+        programLootbox.programId
+      )
+
+      const state = await programLootbox.account.userState.fetch(userState)
+
+      const tx = await programLootbox.methods
+        .mintReward()
+        .accounts({
+          state: userState,
+          mint: state.mint,
+          tokenAccount: state.tokenAccount,
+          mintAuthority: mintAuth,
+          tokenProgram: spl.TOKEN_PROGRAM_ID,
+          associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          payer: publicKey!,
+        })
+        .transaction()
+
+      const transactionSignature = await sendTransaction(tx, connection)
+      console.log(
+        `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
+      )
     }
   }
 
@@ -447,7 +488,7 @@ const Lootbox: FC = () => {
       switchboard()
       setup()
     },
-    []
+    [programLootbox, programSwitchboard]
   )
 
   const request: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -456,7 +497,16 @@ const Lootbox: FC = () => {
       switchboard()
       requestRandomness()
     },
-    []
+    [programLootbox, programSwitchboard]
+  )
+
+  const redeem: MouseEventHandler<HTMLButtonElement> = useCallback(
+    async (event) => {
+      if (event.defaultPrevented) return
+      switchboard()
+      mintRewards()
+    },
+    [programLootbox, programSwitchboard]
   )
 
   return (
@@ -472,6 +522,9 @@ const Lootbox: FC = () => {
       </Button>
       <Button bgColor="accent" color="white" maxW="380px" onClick={request}>
         <Text>Request</Text>
+      </Button>
+      <Button bgColor="accent" color="white" maxW="380px" onClick={redeem}>
+        <Text>Redeem</Text>
       </Button>
     </VStack>
   )

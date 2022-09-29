@@ -5,7 +5,7 @@ export const STAKING_PROGRAM_ID = new PublicKey(
 )
 
 export const LOOTBOX_PROGRAM_ID = new PublicKey(
-  "5GZTkKxE5XeSrzdc6NXZEuNhczQGDhojGA8mZQX5oWNw"
+  "ExH9v81oi6CZuGhDAdtuCf6R4XTaLvq9h9tr7bHhz6QA"
 )
 
 export const STAKE_MINT = new PublicKey(

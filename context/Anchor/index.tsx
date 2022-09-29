@@ -46,7 +46,7 @@ const WorkspaceProvider = ({ children }: any) => {
   const wallet = useAnchorWallet() || MockWallet
   const { connection } = useConnection()
 
-  const provider = new AnchorProvider(connection, wallet, {})
+  const provider = useMemo(() => new AnchorProvider(connection, wallet, {}), [])
   setProvider(provider)
 
   const [programSwitchboard, setProgramSwitchboard] = useState<any>()
@@ -67,39 +67,7 @@ const WorkspaceProvider = ({ children }: any) => {
       setProgramSwitchboard(result)
       console.log("result", result)
     })
-  }, [connection])
-
-  // let program = async function () {
-  //   let response = await loadSwitchboardProgram(
-  //     "devnet",
-  //     connection,
-  //     ((provider as AnchorProvider).wallet as AnchorWallet).payer
-  //   )
-  //   return response
-  // }
-
-  // const test = useMemo(
-  //   () =>
-  //     program().then((result) => {
-  //       setProgramSwitchboard(result)
-  //     }),
-  //   [wallet]
-  // )
-  // async function getProgram() {
-  //   const switchboardProgram = await loadSwitchboardProgram(
-  //     "devnet",
-  //     connection,
-  //     ((provider as AnchorProvider).wallet as AnchorWallet).payer
-  //   )
-  //   if (switchboardProgram) {
-  //     return switchboardProgram
-  //   }
-  // }
-
-  // const programSwitchboard = new Program(
-  //   SwitchboardIDL as unknown as Idl,
-  //   SBV2_DEVNET_PID
-  // )
+  }, [provider])
 
   const workspace = {
     connection,

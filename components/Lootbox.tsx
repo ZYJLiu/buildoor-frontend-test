@@ -15,7 +15,12 @@ import {
   useMemo,
   useState,
 } from "react"
-import { PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js"
+import {
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import {
   Metaplex,
@@ -46,6 +51,8 @@ import {
   NATIVE_MINT,
   getAccount,
 } from "@solana/spl-token"
+import { Lootbox, IDL as LootboxIDL } from "../context/Anchor/lootbox"
+import { Program } from "@project-serum/anchor"
 
 const Lootbox: FC = () => {
   const { connection } = useConnection()
@@ -125,6 +132,13 @@ const Lootbox: FC = () => {
           programStateAccount.publicKey,
           [vrfKeypair]
         ),
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: publicKey!,
+          toPubkey: escrow,
+          lamports: 1 * LAMPORTS_PER_SOL,
+        }),
+        // sync wrapped SOL balance
+        spl.createSyncNativeInstruction(escrow),
         anchor.web3.SystemProgram.createAccount({
           fromPubkey: publicKey!,
           newAccountPubkey: vrfKeypair.publicKey,
@@ -157,7 +171,7 @@ const Lootbox: FC = () => {
           })
           .accounts({
             vrf: vrfKeypair.publicKey,
-            escrow,
+            escrow: escrow,
             authority: userState,
             oracleQueue: queueAccount.publicKey,
             programState: programStateAccount.publicKey,
@@ -165,17 +179,17 @@ const Lootbox: FC = () => {
           })
           .instruction(),
         // create permission account
-        // await programSwitchboard.methods
-        //   .permissionInit({})
-        //   .accounts({
-        //     permission: permissionAccount.publicKey,
-        //     authority: queueState.authority,
-        //     granter: queueAccount.publicKey,
-        //     grantee: vrfKeypair.publicKey,
-        //     payer: publicKey!,
-        //     systemProgram: anchor.web3.SystemProgram.programId,
-        //   })
-        //   .instruction(),
+        await programSwitchboard.methods
+          .permissionInit({})
+          .accounts({
+            permission: permissionAccount.publicKey,
+            authority: queueState.authority,
+            granter: queueAccount.publicKey,
+            grantee: vrfKeypair.publicKey,
+            payer: publicKey!,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .instruction(),
         await programLootbox!.methods
           .initUser({
             switchboardStateBump: stateBump,
@@ -188,85 +202,7 @@ const Lootbox: FC = () => {
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .instruction(),
-        // await programLootbox!.methods
-        //   .requestRandomness()
-        //   .accounts({
-        //     state: userState,
-        //     vrf: vrfKeypair.publicKey,
-        //     oracleQueue: queueAccount.publicKey,
-        //     queueAuthority: queueState.authority,
-        //     dataBuffer: queueState.dataBuffer,
-        //     permission: permissionAccount.publicKey,
-        //     escrow: escrow,
-        //     programState: programStateAccount.publicKey,
-        //     switchboardProgram: programSwitchboard.programId,
-        //     payerWallet: publicKey!,
-        //     payer: publicKey!,
-        //     recentBlockhashes: anchor.web3.SYSVAR_RECENT_BLOCKHASHES_PUBKEY,
-        //     stakeMint: STAKE_MINT,
-        //     stakeTokenAccount: stakeTokenAccount,
-        //     tokenProgram: spl.TOKEN_PROGRAM_ID,
-        //   })
-        //   .instruction(),
       ]
-
-      // const tx = await programSwitchboard.methods
-      //   .vrfInit({
-      //     stateBump,
-      //     callback: {
-      //       programId: programLootbox!.programId,
-      //       accounts: [
-      //         { pubkey: userState, isSigner: false, isWritable: true },
-      //         {
-      //           pubkey: vrfKeypair.publicKey,
-      //           isSigner: false,
-      //           isWritable: false,
-      //         },
-      //         { pubkey: lootbox, isSigner: false, isWritable: false },
-      //         { pubkey: publicKey!, isSigner: false, isWritable: false },
-      //       ],
-      //       ixData: new anchor.BorshInstructionCoder(
-      //         programLootbox!.idl
-      //       ).encode("consumeRandomness", ""),
-      //     },
-      //   })
-      //   .accounts({
-      //     vrf: vrfKeypair.publicKey,
-      //     escrow,
-      //     authority: userState,
-      //     oracleQueue: queueAccount.publicKey,
-      //     programState: programStateAccount.publicKey,
-      //     tokenProgram: spl.TOKEN_PROGRAM_ID,
-      //   })
-      //   .preInstructions([
-      //     spl.createAssociatedTokenAccountInstruction(
-      //       publicKey!,
-      //       escrow,
-      //       vrfKeypair.publicKey,
-      //       switchTokenMint.address
-      //     ),
-      //     spl.createSetAuthorityInstruction(
-      //       escrow,
-      //       vrfKeypair.publicKey,
-      //       spl.AuthorityType.AccountOwner,
-      //       programStateAccount.publicKey,
-      //       [vrfKeypair]
-      //     ),
-      //     anchor.web3.SystemProgram.createAccount({
-      //       fromPubkey: publicKey!,
-      //       newAccountPubkey: vrfKeypair.publicKey,
-      //       space: size,
-      //       lamports:
-      //         await programSwitchboard.provider.connection.getMinimumBalanceForRentExemption(
-      //           size
-      //         ),
-      //       programId: programSwitchboard.programId,
-      //     }),
-      //   ])
-      //   .signers([vrfKeypair])
-      //   .transaction()
-
-      // console.log(ix)
 
       const tx = new Transaction().add(...txnIxns)
 
@@ -275,62 +211,6 @@ const Lootbox: FC = () => {
       })
 
       console.log(sig)
-
-      // const tx = await programSwitchboard.methods
-      //   .vrfInit({
-      //     stateBump,
-      //     callback: {
-      //       programId: programLootbox!.programId,
-      //       accounts: [
-      //         { pubkey: userState, isSigner: false, isWritable: true },
-      //         {
-      //           pubkey: vrfKeypair.publicKey,
-      //           isSigner: false,
-      //           isWritable: false,
-      //         },
-      //         { pubkey: lootbox, isSigner: false, isWritable: false },
-      //         { pubkey: publicKey!, isSigner: false, isWritable: false },
-      //       ],
-      //       ixData: new anchor.BorshInstructionCoder(
-      //         programLootbox!.idl
-      //       ).encode("consumeRandomness", ""),
-      //     },
-      //   })
-      //   .accounts({
-      //     vrf: vrfKeypair.publicKey,
-      //     escrow,
-      //     authority: userState,
-      //     oracleQueue: queueAccount.publicKey,
-      //     programState: programStateAccount.publicKey,
-      //     tokenProgram: spl.TOKEN_PROGRAM_ID,
-      //   })
-      //   .preInstructions([
-      //     spl.createAssociatedTokenAccountInstruction(
-      //       publicKey!,
-      //       escrow,
-      //       vrfKeypair.publicKey,
-      //       switchTokenMint.address
-      //     ),
-      //     spl.createSetAuthorityInstruction(
-      //       escrow,
-      //       vrfKeypair.publicKey,
-      //       spl.AuthorityType.AccountOwner,
-      //       programStateAccount.publicKey,
-      //       [vrfKeypair]
-      //     ),
-      //     anchor.web3.SystemProgram.createAccount({
-      //       fromPubkey: publicKey!,
-      //       newAccountPubkey: vrfKeypair.publicKey,
-      //       space: size,
-      //       lamports:
-      //         await programSwitchboard.provider.connection.getMinimumBalanceForRentExemption(
-      //           size
-      //         ),
-      //       programId: programSwitchboard.programId,
-      //     }),
-      //   ])
-      //   .signers([vrfKeypair])
-      //   .transaction()
     }
   }
 
@@ -367,25 +247,27 @@ const Lootbox: FC = () => {
         programLootbox!.programId
       )
 
-      const state = await programLootbox!.account.userState.fetch(userState)
-      const vrfAccount = new VrfAccount({
-        program: programSwitchboard,
-        publicKey: state.vrf,
-      })
+      // const state = await programLootbox!.account.userState.fetch(userState)
+      // const vrfAccount = new VrfAccount({
+      //   program: programSwitchboard,
+      //   publicKey: vrfKeypair.publicKey,
+      // })
 
-      console.log("vrf account", vrfAccount.publicKey.toString())
+      // console.log("vrf account", vrfAccount.publicKey.toString())
 
-      const vrfState = await vrfAccount.loadData()
+      // const vrfState = await vrfAccount.loadData()
 
       const queueAccount = new OracleQueueAccount({
         program: programSwitchboard,
-        publicKey: vrfState.oracleQueue,
+        publicKey: new PublicKey(
+          "F8ce7MsckeZAbAGmxjJNetxYXQa9mKr9nnrC3qKubyYy"
+        ),
       })
       const queueState = await queueAccount.loadData()
       const switchTokenMint = await queueAccount.loadMint()
 
-      console.log(queueAccount.publicKey.toString())
-      console.log(queueState.authority.toString())
+      // console.log(queueAccount.publicKey.toString())
+      // console.log(queueState.authority.toString())
 
       const [permissionAccount, permissionBump] = PermissionAccount.fromSeed(
         programSwitchboard,
@@ -394,7 +276,7 @@ const Lootbox: FC = () => {
         vrfKeypair.publicKey
       )
 
-      console.log(permissionAccount.publicKey.toString())
+      // console.log(permissionAccount.publicKey.toString())
 
       const [programStateAccount, switchboardStateBump] =
         ProgramStateAccount.fromSeed(programSwitchboard)
@@ -409,42 +291,148 @@ const Lootbox: FC = () => {
         publicKey!
       )
 
+      const escrow = await spl.getAssociatedTokenAddress(
+        switchTokenMint.address,
+        vrfKeypair.publicKey,
+        true
+      )
+
       // const account = await getAccount(connection, wrappedTokenAccount)
       // console.log(account.amount)
 
-      console.log(programSwitchboard.programId.toString())
+      // console.log(programSwitchboard.programId.toString())
+      // console.log("start")
+      // console.log(userState.toString())
+      // console.log(vrfAccount.publicKey.toString())
+      // console.log(queueAccount.publicKey.toString())
+      // console.log(queueState.dataBuffer.toString())
+      // console.log(permissionAccount.publicKey.toString())
+      // console.log(vrfState.escrow.toString())
+      // console.log(programStateAccount.publicKey.toString())
+      // console.log(programSwitchboard.programId.toString())
+      // console.log(wrappedTokenAccount.toString())
+      // console.log(publicKey!.toString())
+      // console.log(STAKE_MINT.toString())
+      // console.log(spl.TOKEN_PROGRAM_ID.toString())
+      // console.log(anchor.web3.SYSVAR_RECENT_BLOCKHASHES_PUBKEY.toString())
 
-      const tx = await programLootbox!.methods
-        .requestRandomness()
-        .accounts({
-          state: userState,
-          vrf: vrfAccount.publicKey,
-          oracleQueue: queueAccount.publicKey,
-          queueAuthority: queueState.authority,
-          dataBuffer: queueState.dataBuffer,
-          permission: permissionAccount.publicKey,
-          escrow: vrfState.escrow,
-          programState: programStateAccount.publicKey,
-          switchboardProgram: programSwitchboard.programId,
-          payerWallet: wrappedTokenAccount,
-          payer: publicKey!,
-          recentBlockhashes: anchor.web3.SYSVAR_RECENT_BLOCKHASHES_PUBKEY,
-          stakeMint: STAKE_MINT,
-          stakeTokenAccount: stakeTokenAccount,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-        })
-        .transaction()
+      // const txnIxns: TransactionInstruction[] = [
+      //   anchor.web3.SystemProgram.transfer({
+      //     fromPubkey: publicKey!,
+      //     toPubkey: wrappedTokenAccount,
+      //     lamports: 1,
+      //   }),
+      //   // sync wrapped SOL balance
+      //   spl.createSyncNativeInstruction(wrappedTokenAccount),
+      //   await programLootbox!.methods
+      //     .requestRandomness()
+      //     .accounts({
+      //       state: userState,
+      //       vrf: vrfKeypair.publicKey,
+      //       oracleQueue: queueAccount.publicKey,
+      //       queueAuthority: queueState.authority,
+      //       dataBuffer: queueState.dataBuffer,
+      //       permission: permissionAccount.publicKey,
+      //       escrow: escrow,
+      //       programState: programStateAccount.publicKey,
+      //       switchboardProgram: programSwitchboard.programId,
+      //       payerWallet: wrappedTokenAccount,
+      //       payer: publicKey!,
+      //       recentBlockhashes: anchor.web3.SYSVAR_RECENT_BLOCKHASHES_PUBKEY,
+      //       stakeMint: STAKE_MINT,
+      //       stakeTokenAccount: stakeTokenAccount,
+      //       tokenProgram: spl.TOKEN_PROGRAM_ID,
+      //     })
+      //     .instruction(),
+      // ]
 
-      // const tx = new Transaction().add(...txnIxns)
+      const txnIxns: TransactionInstruction[] = [
+        // anchor.web3.SystemProgram.transfer({
+        //   fromPubkey: publicKey!,
+        //   toPubkey: wrappedTokenAccount,
+        //   lamports: 1,
+        // }),
+        // // sync wrapped SOL balance
+        // spl.createSyncNativeInstruction(wrappedTokenAccount),
+        await programLootbox!.methods
+          .requestRandomness()
+          .accounts({
+            state: userState,
+            vrf: vrfKeypair.publicKey,
+            oracleQueue: queueAccount.publicKey,
+            queueAuthority: queueState.authority,
+            dataBuffer: queueState.dataBuffer,
+            permission: permissionAccount.publicKey,
+            escrow: escrow,
+            programState: programStateAccount.publicKey,
+            switchboardProgram: programSwitchboard.programId,
+            payerWallet: wrappedTokenAccount,
+            payer: publicKey!,
+            recentBlockhashes: anchor.web3.SYSVAR_RECENT_BLOCKHASHES_PUBKEY,
+            stakeMint: STAKE_MINT,
+            stakeTokenAccount: stakeTokenAccount,
+            tokenProgram: spl.TOKEN_PROGRAM_ID,
+          })
+          .instruction(),
+      ]
+
+      const tx = new Transaction().add(...txnIxns)
 
       const sig = await sendTransaction(tx, connection)
-      // console.log(sig)
+      console.log(sig)
+
+      const result = await awaitCallback(programLootbox!, userState, 20_000)
+
+      console.log(`VrfClient Result: ${result}`)
     }
   }
 
+  async function awaitCallback(
+    program: Program<Lootbox>,
+    vrfClientKey: anchor.web3.PublicKey,
+    timeoutInterval: number,
+    errorMsg = "Timed out waiting for VRF Client callback"
+  ) {
+    let ws: number | undefined = undefined
+    const result: anchor.BN = await promiseWithTimeout(
+      timeoutInterval,
+      new Promise((resolve: (result: anchor.BN) => void) => {
+        ws = program.provider.connection.onAccountChange(
+          vrfClientKey,
+          async (
+            accountInfo: anchor.web3.AccountInfo<Buffer>,
+            context: anchor.web3.Context
+          ) => {
+            // const clientState = program.account.userState.coder.accounts.decode(
+            //   "userState",
+            //   accountInfo.data
+            // )
+            const clientState = await program.account.userState.fetch(
+              vrfClientKey
+            )
+            if (clientState.result.gt(new anchor.BN(0))) {
+              resolve(clientState.result)
+            }
+          }
+        )
+      }).finally(async () => {
+        if (ws) {
+          await program.provider.connection.removeAccountChangeListener(ws)
+        }
+        ws = undefined
+      }),
+      new Error(errorMsg)
+    ).finally(async () => {
+      if (ws) {
+        await program.provider.connection.removeAccountChangeListener(ws)
+      }
+      ws = undefined
+    })
+
+    return result
+  }
+
   const switchboard = async () => {
-    // const IDL = await anchor.Program.fetchIdl(SBV2_DEVNET_PID, provider)
-    // console.log(IDL)
     console.log("switchboard", programSwitchboard)
     console.log("lootbox", programLootbox)
   }

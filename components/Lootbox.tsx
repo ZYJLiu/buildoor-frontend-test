@@ -437,7 +437,7 @@ const Lootbox: FC = () => {
 
       // const tx = new Transaction().add(...txnIxns)
 
-      // const sig = await sendTransaction(tx, connection)
+      const sig = await sendTransaction(tx, connection)
       // console.log(sig)
     }
   }

@@ -51,6 +51,8 @@ import {
   NATIVE_MINT,
   getAccount,
 } from "@solana/spl-token"
+import { Lootbox, IDL as LootboxIDL } from "../context/Anchor/lootbox"
+import { Program } from "@project-serum/anchor"
 
 const Lootbox: FC = () => {
   const { connection } = useConnection()
@@ -133,7 +135,7 @@ const Lootbox: FC = () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: publicKey!,
           toPubkey: escrow,
-          lamports: 1,
+          lamports: 1 * LAMPORTS_PER_SOL,
         }),
         // sync wrapped SOL balance
         spl.createSyncNativeInstruction(escrow),
@@ -378,7 +380,56 @@ const Lootbox: FC = () => {
 
       const sig = await sendTransaction(tx, connection)
       console.log(sig)
+
+      const result = await awaitCallback(programLootbox!, userState, 20_000)
+
+      console.log(`VrfClient Result: ${result}`)
     }
+  }
+
+  async function awaitCallback(
+    program: Program<Lootbox>,
+    vrfClientKey: anchor.web3.PublicKey,
+    timeoutInterval: number,
+    errorMsg = "Timed out waiting for VRF Client callback"
+  ) {
+    let ws: number | undefined = undefined
+    const result: anchor.BN = await promiseWithTimeout(
+      timeoutInterval,
+      new Promise((resolve: (result: anchor.BN) => void) => {
+        ws = program.provider.connection.onAccountChange(
+          vrfClientKey,
+          async (
+            accountInfo: anchor.web3.AccountInfo<Buffer>,
+            context: anchor.web3.Context
+          ) => {
+            // const clientState = program.account.userState.coder.accounts.decode(
+            //   "userState",
+            //   accountInfo.data
+            // )
+            const clientState = await program.account.userState.fetch(
+              vrfClientKey
+            )
+            if (clientState.result.gt(new anchor.BN(0))) {
+              resolve(clientState.result)
+            }
+          }
+        )
+      }).finally(async () => {
+        if (ws) {
+          await program.provider.connection.removeAccountChangeListener(ws)
+        }
+        ws = undefined
+      }),
+      new Error(errorMsg)
+    ).finally(async () => {
+      if (ws) {
+        await program.provider.connection.removeAccountChangeListener(ws)
+      }
+      ws = undefined
+    })
+
+    return result
   }
 
   const switchboard = async () => {

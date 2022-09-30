@@ -40,8 +40,6 @@ const Lootbox: FC = () => {
   const programLootbox = workspace.programLootbox
   const programSwitchboard = workspace.programSwitchboard
 
-  // const vrfKeypair = anchor.web3.Keypair.generate()
-  // console.log("vrf", vrfKeypair.publicKey.toString())
   const checkUserAccount = async () => {
     try {
       const [userState, userStateBump] = await PublicKey.findProgramAddress(

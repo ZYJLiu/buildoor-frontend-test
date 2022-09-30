@@ -7,14 +7,7 @@ import {
   HStack,
   Image,
 } from "@chakra-ui/react"
-import {
-  FC,
-  MouseEventHandler,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react"
+import { FC, MouseEventHandler, useCallback, useEffect, useState } from "react"
 import {
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -121,13 +114,13 @@ const Lootbox: FC = () => {
           programStateAccount.publicKey,
           [vrfKeypair]
         ),
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: publicKey!,
-          toPubkey: escrow,
-          lamports: 0.002 * LAMPORTS_PER_SOL,
-        }),
-        // sync wrapped SOL balance
-        spl.createSyncNativeInstruction(escrow),
+        // anchor.web3.SystemProgram.transfer({
+        //   fromPubkey: publicKey!,
+        //   toPubkey: escrow,
+        //   lamports: 0.02 * LAMPORTS_PER_SOL,
+        // }),
+        // // // sync wrapped SOL balance
+        // spl.createSyncNativeInstruction(escrow),
         anchor.web3.SystemProgram.createAccount({
           fromPubkey: publicKey!,
           newAccountPubkey: vrfKeypair.publicKey,
@@ -216,7 +209,7 @@ const Lootbox: FC = () => {
   }
 
   const requestRandomness = async () => {
-    if (programSwitchboard) {
+    if (programSwitchboard && publicKey) {
       const [userState, userStateBump] = await PublicKey.findProgramAddress(
         [publicKey!.toBytes()],
         programLootbox!.programId

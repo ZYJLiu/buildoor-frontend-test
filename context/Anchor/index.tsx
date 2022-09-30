@@ -67,7 +67,7 @@ const WorkspaceProvider = ({ children }: any) => {
       setProgramSwitchboard(result)
       console.log("result", result)
     })
-  }, [connection])
+  }, [])
 
   const workspace = {
     connection,

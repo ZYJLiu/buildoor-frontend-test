@@ -16,6 +16,7 @@ import {
 } from "@solana/web3.js"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { useWorkspace } from "../context/Anchor"
+import { promiseWithTimeout } from "@switchboard-xyz/sbv2-utils"
 import {
   PermissionAccount,
   ProgramStateAccount,
@@ -24,6 +25,9 @@ import {
 import * as spl from "@solana/spl-token"
 import * as anchor from "@project-serum/anchor"
 import { STAKE_MINT } from "../utils/constants"
+
+import { Lootbox } from "../context/Anchor/lootbox"
+import { Program } from "@project-serum/anchor"
 
 const Lootbox: FC = () => {
   const { connection } = useConnection()
@@ -50,7 +54,7 @@ const Lootbox: FC = () => {
     } catch (e) {}
   }
 
-  const initUser = async () => {
+  const setup = async () => {
     if (programSwitchboard) {
       console.log("vrf", vrfKeypair.publicKey.toString())
 
@@ -295,20 +299,12 @@ const Lootbox: FC = () => {
         `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
       )
 
-      const id = await connection.onAccountChange(userState, (accountInfo) => {
-        const test =
-          programLootbox!.account.userState.coder.accounts.decodeUnchecked(
-            "userState",
-            accountInfo.data
-          )
-        console.log("test")
-        if (test.result.gt(new anchor.BN(0))) {
-          console.log(new anchor.BN(test.result).toNumber())
-          checkUserAccount()
-          setIsLoading(false)
-          connection.removeAccountChangeListener(id)
-        }
-      })
+      const result = await awaitCallback(programLootbox!, userState, 20_000)
+
+      console.log(`Randomness Result: ${result}`)
+
+      checkUserAccount()
+      setIsLoading(false)
     }
   }
 
@@ -356,6 +352,47 @@ const Lootbox: FC = () => {
     }
   }
 
+  async function awaitCallback(
+    program: Program<Lootbox>,
+    vrfClientKey: anchor.web3.PublicKey,
+    timeoutInterval: number,
+    errorMsg = "Timed out waiting for VRF Client callback"
+  ) {
+    let ws: number | undefined = undefined
+    const result: anchor.BN = await promiseWithTimeout(
+      timeoutInterval,
+      new Promise((resolve: (result: anchor.BN) => void) => {
+        ws = program.provider.connection.onAccountChange(
+          vrfClientKey,
+          async (
+            accountInfo: anchor.web3.AccountInfo<Buffer>,
+            context: anchor.web3.Context
+          ) => {
+            const clientState = await program.account.userState.fetch(
+              vrfClientKey
+            )
+            if (clientState.result.gt(new anchor.BN(0))) {
+              resolve(clientState.result)
+            }
+          }
+        )
+      }).finally(async () => {
+        if (ws) {
+          await program.provider.connection.removeAccountChangeListener(ws)
+        }
+        ws = undefined
+      }),
+      new Error(errorMsg)
+    ).finally(async () => {
+      if (ws) {
+        await program.provider.connection.removeAccountChangeListener(ws)
+      }
+      ws = undefined
+    })
+
+    return result
+  }
+
   useEffect(() => {
     // switchboard()
     checkUserAccount()
@@ -365,9 +402,9 @@ const Lootbox: FC = () => {
     async (event) => {
       if (event.defaultPrevented) return
       setIsLoading(true)
-      initUser()
+      setup()
     },
-    [workspace]
+    [programLootbox, programSwitchboard]
   )
 
   const request: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -376,7 +413,7 @@ const Lootbox: FC = () => {
       setIsLoading(true)
       requestRandomness()
     },
-    [workspace]
+    [programLootbox, programSwitchboard]
   )
 
   const redeem: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -385,7 +422,7 @@ const Lootbox: FC = () => {
       setIsLoading(true)
       mintRewards()
     },
-    [workspace]
+    [programLootbox, programSwitchboard]
   )
 
   return (

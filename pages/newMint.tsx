@@ -86,7 +86,7 @@ const NewMint: NextPage<NewMintProps> = ({ mint }) => {
         // push to new page
         router.push(`/stake?mint=${mint}&imageSrc=${nftData?.json.image}`)
       }
-    }, [router, mint, nftData])
+    }, [router, mint, nftData, program, walletAdapter])
 
   useEffect(() => {
     metaplex

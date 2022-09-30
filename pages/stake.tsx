@@ -247,7 +247,7 @@ const Stake: NextPage<StakeProps> = ({ mint, imageSrc, level }) => {
   // fetch NFT data
   useEffect(() => {
     fetchNft()
-  }, [mint])
+  }, [mint, programStaking])
 
   // check stake status
   useEffect(() => {

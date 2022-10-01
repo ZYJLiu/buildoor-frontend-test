@@ -16,7 +16,6 @@ import {
 } from "@solana/web3.js"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { useWorkspace } from "../context/Anchor"
-import { promiseWithTimeout } from "@switchboard-xyz/sbv2-utils"
 import {
   PermissionAccount,
   ProgramStateAccount,
@@ -26,12 +25,9 @@ import * as spl from "@solana/spl-token"
 import * as anchor from "@project-serum/anchor"
 import { STAKE_MINT } from "../utils/constants"
 
-import { Lootbox } from "../context/Anchor/lootbox"
-import { Program } from "@project-serum/anchor"
-
 const Lootbox: FC = () => {
   const { connection } = useConnection()
-  const [vrfKeypair, setSwitchboardPID] = useState(new anchor.web3.Keypair())
+  const [vrfKeypair] = useState(new anchor.web3.Keypair())
   const [user, setUser] = useState<any>()
   const [isLoading, setIsLoading] = useState(false)
   const [redeemable, setRedeemable] = useState(false)
@@ -42,7 +38,7 @@ const Lootbox: FC = () => {
 
   const checkUserAccount = async () => {
     try {
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
+      const [userState] = await PublicKey.findProgramAddress(
         [publicKey!.toBytes()],
         programLootbox!.programId
       )
@@ -54,13 +50,10 @@ const Lootbox: FC = () => {
     } catch (e) {}
   }
 
-  const setup = async () => {
+  const initUser = async () => {
     if (programSwitchboard) {
-      console.log("vrf", vrfKeypair.publicKey.toString())
-
       const [programStateAccount, stateBump] =
         ProgramStateAccount.fromSeed(programSwitchboard)
-      // keypair for vrf account
 
       const queueAccount = new OracleQueueAccount({
         program: programSwitchboard,
@@ -72,6 +65,13 @@ const Lootbox: FC = () => {
 
       const queueState = await queueAccount.loadData()
 
+      const [permissionAccount, permissionBump] = PermissionAccount.fromSeed(
+        programSwitchboard,
+        queueState.authority,
+        queueAccount.publicKey,
+        vrfKeypair.publicKey
+      )
+
       const size = programSwitchboard.account.vrfAccountData.size
       const switchTokenMint = await queueAccount.loadMint()
 
@@ -81,21 +81,14 @@ const Lootbox: FC = () => {
         true
       )
 
-      // find PDA used for our client state pubkey
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
+      const [userState] = await PublicKey.findProgramAddress(
         [publicKey!.toBytes()],
         programLootbox!.programId
       )
+
       const [lootbox] = await anchor.web3.PublicKey.findProgramAddress(
         [Buffer.from("LOOTBOX")],
         programLootbox!.programId
-      )
-
-      const [permissionAccount, permissionBump] = PermissionAccount.fromSeed(
-        programSwitchboard,
-        queueState.authority,
-        queueAccount.publicKey,
-        vrfKeypair.publicKey
       )
 
       const txnIxns: TransactionInstruction[] = [
@@ -299,18 +292,25 @@ const Lootbox: FC = () => {
         `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
       )
 
-      const result = await awaitCallback(programLootbox!, userState, 20_000)
-
-      console.log(`Randomness Result: ${result}`)
-
-      checkUserAccount()
-      setIsLoading(false)
+      const id = await connection.onAccountChange(userState, (accountInfo) => {
+        const account =
+          programLootbox!.account.userState.coder.accounts.decodeUnchecked(
+            "userState",
+            accountInfo.data
+          )
+        if (account.result.gt(new anchor.BN(0))) {
+          checkUserAccount()
+          setIsLoading(false)
+          connection.removeAccountChangeListener(id)
+          console.log(new anchor.BN(account.result).toNumber())
+        }
+      })
     }
   }
 
   const mintRewards = async () => {
     if (programSwitchboard && programLootbox) {
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
+      const [userState] = await PublicKey.findProgramAddress(
         [publicKey!.toBytes()],
         programLootbox.programId
       )
@@ -352,49 +352,7 @@ const Lootbox: FC = () => {
     }
   }
 
-  async function awaitCallback(
-    program: Program<Lootbox>,
-    vrfClientKey: anchor.web3.PublicKey,
-    timeoutInterval: number,
-    errorMsg = "Timed out waiting for VRF Client callback"
-  ) {
-    let ws: number | undefined = undefined
-    const result: anchor.BN = await promiseWithTimeout(
-      timeoutInterval,
-      new Promise((resolve: (result: anchor.BN) => void) => {
-        ws = program.provider.connection.onAccountChange(
-          vrfClientKey,
-          async (
-            accountInfo: anchor.web3.AccountInfo<Buffer>,
-            context: anchor.web3.Context
-          ) => {
-            const clientState = await program.account.userState.fetch(
-              vrfClientKey
-            )
-            if (clientState.result.gt(new anchor.BN(0))) {
-              resolve(clientState.result)
-            }
-          }
-        )
-      }).finally(async () => {
-        if (ws) {
-          await program.provider.connection.removeAccountChangeListener(ws)
-        }
-        ws = undefined
-      }),
-      new Error(errorMsg)
-    ).finally(async () => {
-      if (ws) {
-        await program.provider.connection.removeAccountChangeListener(ws)
-      }
-      ws = undefined
-    })
-
-    return result
-  }
-
   useEffect(() => {
-    // switchboard()
     checkUserAccount()
   }, [publicKey])
 
@@ -402,9 +360,9 @@ const Lootbox: FC = () => {
     async (event) => {
       if (event.defaultPrevented) return
       setIsLoading(true)
-      setup()
+      initUser()
     },
-    [programLootbox, programSwitchboard]
+    [workspace]
   )
 
   const request: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -413,7 +371,7 @@ const Lootbox: FC = () => {
       setIsLoading(true)
       requestRandomness()
     },
-    [programLootbox, programSwitchboard]
+    [workspace]
   )
 
   const redeem: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -422,7 +380,7 @@ const Lootbox: FC = () => {
       setIsLoading(true)
       mintRewards()
     },
-    [programLootbox, programSwitchboard]
+    [workspace]
   )
 
   return (
@@ -432,16 +390,6 @@ const Lootbox: FC = () => {
       padding="20px 40px"
       spacing={5}
     >
-      {/* <Image src="avatar1.png" alt="" />
-      <Button bgColor="accent" color="white" maxW="380px" onClick={init}>
-        <Text>Init</Text>
-      </Button>
-      <Button bgColor="accent" color="white" maxW="380px" onClick={request}>
-        <Text>Request</Text>
-      </Button>
-      <Button bgColor="accent" color="white" maxW="380px" onClick={redeem}>
-        <Text>Redeem</Text>
-      </Button> */}
       {user ? (
         <VStack>
           {redeemable ? (

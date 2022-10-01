@@ -1,12 +1,4 @@
-import {
-  Button,
-  Container,
-  Heading,
-  VStack,
-  Text,
-  HStack,
-  Image,
-} from "@chakra-ui/react"
+import { Button, VStack, Text, Image } from "@chakra-ui/react"
 import { FC, MouseEventHandler, useCallback, useEffect, useState } from "react"
 import {
   LAMPORTS_PER_SOL,
@@ -27,36 +19,56 @@ import { STAKE_MINT } from "../utils/constants"
 
 const Lootbox: FC = () => {
   const { connection } = useConnection()
-  const [vrfKeypair, setSwitchboardPID] = useState(new anchor.web3.Keypair())
-  const [user, setUser] = useState<any>()
-  const [isLoading, setIsLoading] = useState(false)
-  const [redeemable, setRedeemable] = useState(false)
   const { publicKey, sendTransaction } = useWallet()
+
   const workspace = useWorkspace()
   const programLootbox = workspace.programLootbox
   const programSwitchboard = workspace.programSwitchboard
 
-  const checkUserAccount = async () => {
-    try {
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
-        [publicKey!.toBytes()],
-        programLootbox!.programId
+  const [vrfKeypair] = useState(new anchor.web3.Keypair())
+  const [userStatePDA, setUserStatePDA] = useState<PublicKey>()
+  const [userAccountExist, setUserAccountExist] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [redeemable, setRedeemable] = useState(false)
+
+  const getUserStatePDA = async () => {
+    if (programLootbox && publicKey) {
+      const [userState] = await PublicKey.findProgramAddress(
+        [publicKey.toBytes()],
+        programLootbox.programId
       )
-      const account = await programLootbox!.account.userState.fetch(userState)
-      if (account) {
-        setUser(account)
-        setRedeemable(account.redeemable)
-      }
-    } catch (e) {}
+      setUserStatePDA(userState)
+    }
   }
 
-  const initUser = async () => {
-    if (programSwitchboard) {
-      console.log("vrf", vrfKeypair.publicKey.toString())
+  useEffect(() => {
+    getUserStatePDA()
+  }, [publicKey])
 
+  const checkUserAccount = async () => {
+    if (programLootbox && userStatePDA) {
+      try {
+        const account = await programLootbox.account.userState.fetch(
+          userStatePDA
+        )
+        if (account) {
+          setUserAccountExist(true)
+          setRedeemable(account.redeemable)
+        } else {
+          setUserAccountExist(false)
+        }
+      } catch (e) {}
+    }
+  }
+
+  useEffect(() => {
+    checkUserAccount()
+  }, [userStatePDA])
+
+  const initUser = async () => {
+    if (programSwitchboard && programLootbox && publicKey && userStatePDA) {
       const [programStateAccount, stateBump] =
         ProgramStateAccount.fromSeed(programSwitchboard)
-      // keypair for vrf account
 
       const queueAccount = new OracleQueueAccount({
         program: programSwitchboard,
@@ -67,25 +79,8 @@ const Lootbox: FC = () => {
       })
 
       const queueState = await queueAccount.loadData()
-
+      const wrappedSOLMint = await queueAccount.loadMint()
       const size = programSwitchboard.account.vrfAccountData.size
-      const switchTokenMint = await queueAccount.loadMint()
-
-      const escrow = await spl.getAssociatedTokenAddress(
-        switchTokenMint.address,
-        vrfKeypair.publicKey,
-        true
-      )
-
-      // find PDA used for our client state pubkey
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
-        [publicKey!.toBytes()],
-        programLootbox!.programId
-      )
-      const [lootbox] = await anchor.web3.PublicKey.findProgramAddress(
-        [Buffer.from("LOOTBOX")],
-        programLootbox!.programId
-      )
 
       const [permissionAccount, permissionBump] = PermissionAccount.fromSeed(
         programSwitchboard,
@@ -94,12 +89,23 @@ const Lootbox: FC = () => {
         vrfKeypair.publicKey
       )
 
+      const escrow = await spl.getAssociatedTokenAddress(
+        wrappedSOLMint.address,
+        vrfKeypair.publicKey,
+        true
+      )
+
+      const [lootbox] = await anchor.web3.PublicKey.findProgramAddress(
+        [Buffer.from("LOOTBOX")],
+        programLootbox.programId
+      )
+
       const txnIxns: TransactionInstruction[] = [
         spl.createAssociatedTokenAccountInstruction(
-          publicKey!,
+          publicKey,
           escrow,
           vrfKeypair.publicKey,
-          switchTokenMint.address
+          wrappedSOLMint.address
         ),
         spl.createSetAuthorityInstruction(
           escrow,
@@ -108,15 +114,8 @@ const Lootbox: FC = () => {
           programStateAccount.publicKey,
           [vrfKeypair]
         ),
-        // anchor.web3.SystemProgram.transfer({
-        //   fromPubkey: publicKey!,
-        //   toPubkey: escrow,
-        //   lamports: 0.02 * LAMPORTS_PER_SOL,
-        // }),
-        // // // sync wrapped SOL balance
-        // spl.createSyncNativeInstruction(escrow),
         anchor.web3.SystemProgram.createAccount({
-          fromPubkey: publicKey!,
+          fromPubkey: publicKey,
           newAccountPubkey: vrfKeypair.publicKey,
           space: size,
           lamports:
@@ -129,26 +128,26 @@ const Lootbox: FC = () => {
           .vrfInit({
             stateBump,
             callback: {
-              programId: programLootbox!.programId,
+              programId: programLootbox.programId,
               accounts: [
-                { pubkey: userState, isSigner: false, isWritable: true },
+                { pubkey: userStatePDA, isSigner: false, isWritable: true },
                 {
                   pubkey: vrfKeypair.publicKey,
                   isSigner: false,
                   isWritable: false,
                 },
                 { pubkey: lootbox, isSigner: false, isWritable: false },
-                { pubkey: publicKey!, isSigner: false, isWritable: false },
+                { pubkey: publicKey, isSigner: false, isWritable: false },
               ],
               ixData: new anchor.BorshInstructionCoder(
-                programLootbox!.idl
+                programLootbox.idl
               ).encode("consumeRandomness", ""),
             },
           })
           .accounts({
             vrf: vrfKeypair.publicKey,
             escrow: escrow,
-            authority: userState,
+            authority: userStatePDA,
             oracleQueue: queueAccount.publicKey,
             programState: programStateAccount.publicKey,
             tokenProgram: spl.TOKEN_PROGRAM_ID,
@@ -162,19 +161,19 @@ const Lootbox: FC = () => {
             authority: queueState.authority,
             granter: queueAccount.publicKey,
             grantee: vrfKeypair.publicKey,
-            payer: publicKey!,
+            payer: publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .instruction(),
-        await programLootbox!.methods
+        await programLootbox.methods
           .initUser({
             switchboardStateBump: stateBump,
             vrfPermissionBump: permissionBump,
           })
           .accounts({
-            state: userState,
+            state: userStatePDA,
             vrf: vrfKeypair.publicKey,
-            payer: publicKey!,
+            payer: publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .instruction(),
@@ -203,12 +202,11 @@ const Lootbox: FC = () => {
   }
 
   const requestRandomness = async () => {
-    if (programSwitchboard && publicKey) {
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
-        [publicKey!.toBytes()],
-        programLootbox!.programId
-      )
-      const state = await programLootbox!.account.userState.fetch(userState)
+    if (programSwitchboard && programLootbox && publicKey && userStatePDA) {
+      const state = await programLootbox.account.userState.fetch(userStatePDA)
+
+      const [programStateAccount] =
+        ProgramStateAccount.fromSeed(programSwitchboard)
 
       const queueAccount = new OracleQueueAccount({
         program: programSwitchboard,
@@ -216,47 +214,58 @@ const Lootbox: FC = () => {
           "F8ce7MsckeZAbAGmxjJNetxYXQa9mKr9nnrC3qKubyYy"
         ),
       })
-      const queueState = await queueAccount.loadData()
-      const switchTokenMint = await queueAccount.loadMint()
 
-      const [permissionAccount, permissionBump] = PermissionAccount.fromSeed(
+      const queueState = await queueAccount.loadData()
+      const wrappedSOLMint = await queueAccount.loadMint()
+
+      const [permissionAccount] = PermissionAccount.fromSeed(
         programSwitchboard,
         queueState.authority,
         queueAccount.publicKey,
         new PublicKey(state.vrf)
       )
 
-      const [programStateAccount, switchboardStateBump] =
-        ProgramStateAccount.fromSeed(programSwitchboard)
-
-      const stakeTokenAccount = await spl.getAssociatedTokenAddress(
-        STAKE_MINT,
-        publicKey!
-      )
-
       const escrow = await spl.getAssociatedTokenAddress(
-        switchTokenMint.address,
+        wrappedSOLMint.address,
         new PublicKey(state.vrf),
         true
       )
 
       const wrappedTokenAccount = await spl.getAssociatedTokenAddress(
-        switchTokenMint.address,
-        publicKey!
+        wrappedSOLMint.address,
+        publicKey
       )
+
+      const stakeTokenAccount = await spl.getAssociatedTokenAddress(
+        STAKE_MINT,
+        publicKey
+      )
+
+      const tx = new Transaction()
+      const account = await connection.getAccountInfo(wrappedTokenAccount)
+      if (!account) {
+        tx.add(
+          spl.createAssociatedTokenAccountInstruction(
+            publicKey,
+            wrappedTokenAccount,
+            publicKey,
+            wrappedSOLMint.address
+          )
+        )
+      }
 
       const txnIxns: TransactionInstruction[] = [
         anchor.web3.SystemProgram.transfer({
-          fromPubkey: publicKey!,
+          fromPubkey: publicKey,
           toPubkey: wrappedTokenAccount,
           lamports: 0.002 * LAMPORTS_PER_SOL,
         }),
-        // // sync wrapped SOL balance
+        // sync wrapped SOL balance
         spl.createSyncNativeInstruction(wrappedTokenAccount),
-        await programLootbox!.methods
+        await programLootbox.methods
           .requestRandomness()
           .accounts({
-            state: userState,
+            // state: userState,
             vrf: new PublicKey(state.vrf),
             oracleQueue: queueAccount.publicKey,
             queueAuthority: queueState.authority,
@@ -266,27 +275,14 @@ const Lootbox: FC = () => {
             programState: programStateAccount.publicKey,
             switchboardProgram: programSwitchboard.programId,
             payerWallet: wrappedTokenAccount,
-            payer: publicKey!,
+            // payer: publicKey,
             recentBlockhashes: anchor.web3.SYSVAR_RECENT_BLOCKHASHES_PUBKEY,
             stakeMint: STAKE_MINT,
             stakeTokenAccount: stakeTokenAccount,
-            tokenProgram: spl.TOKEN_PROGRAM_ID,
+            // tokenProgram: spl.TOKEN_PROGRAM_ID,
           })
           .instruction(),
       ]
-
-      const tx = new Transaction()
-      const account = await connection.getAccountInfo(wrappedTokenAccount)
-      if (!account) {
-        tx.add(
-          spl.createAssociatedTokenAccountInstruction(
-            publicKey!,
-            wrappedTokenAccount,
-            publicKey!,
-            switchTokenMint.address
-          )
-        )
-      }
 
       tx.add(...txnIxns)
 
@@ -295,47 +291,41 @@ const Lootbox: FC = () => {
         `https://explorer.solana.com/tx/${transactionSignature}?cluster=devnet`
       )
 
-      const id = await connection.onAccountChange(userState, (accountInfo) => {
-        const test =
-          programLootbox!.account.userState.coder.accounts.decodeUnchecked(
-            "userState",
-            accountInfo.data
-          )
-        console.log("test")
-        if (test.result.gt(new anchor.BN(0))) {
-          console.log(new anchor.BN(test.result).toNumber())
-          checkUserAccount()
-          setIsLoading(false)
-          connection.removeAccountChangeListener(id)
+      const id = await connection.onAccountChange(
+        userStatePDA,
+        (accountInfo) => {
+          const account =
+            programLootbox.account.userState.coder.accounts.decodeUnchecked(
+              "userState",
+              accountInfo.data
+            )
+          if (account.result.gt(new anchor.BN(0))) {
+            checkUserAccount()
+            setIsLoading(false)
+            connection.removeAccountChangeListener(id)
+            console.log(new anchor.BN(account.result).toNumber())
+          }
         }
-      })
+      )
     }
   }
 
   const mintRewards = async () => {
-    if (programSwitchboard && programLootbox) {
-      const [userState, userStateBump] = await PublicKey.findProgramAddress(
-        [publicKey!.toBytes()],
-        programLootbox.programId
-      )
-      const state = await programLootbox.account.userState.fetch(userState)
-      const [mintAuth] = await PublicKey.findProgramAddress(
-        [Buffer.from("MINT_AUTH")],
-        programLootbox.programId
-      )
+    if (programLootbox && userStatePDA) {
+      const state = await programLootbox.account.userState.fetch(userStatePDA)
 
       const tx = await programLootbox.methods
         .mintReward()
         .accounts({
-          state: userState,
+          // state: userStatePDA,
           mint: state.mint,
           tokenAccount: state.tokenAccount,
-          mintAuthority: mintAuth,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-          associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          payer: publicKey!,
+          // mintAuthority: mintAuth,
+          // tokenProgram: spl.TOKEN_PROGRAM_ID,
+          // associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+          // rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          // systemProgram: anchor.web3.SystemProgram.programId,
+          // payer: publicKey,
         })
         .transaction()
 
@@ -356,18 +346,13 @@ const Lootbox: FC = () => {
     }
   }
 
-  useEffect(() => {
-    // switchboard()
-    checkUserAccount()
-  }, [publicKey])
-
   const init: MouseEventHandler<HTMLButtonElement> = useCallback(
     async (event) => {
       if (event.defaultPrevented) return
       setIsLoading(true)
       initUser()
     },
-    [workspace]
+    [workspace, userStatePDA]
   )
 
   const request: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -376,7 +361,7 @@ const Lootbox: FC = () => {
       setIsLoading(true)
       requestRandomness()
     },
-    [workspace]
+    [workspace, userStatePDA]
   )
 
   const redeem: MouseEventHandler<HTMLButtonElement> = useCallback(
@@ -385,7 +370,7 @@ const Lootbox: FC = () => {
       setIsLoading(true)
       mintRewards()
     },
-    [workspace]
+    [workspace, userStatePDA]
   )
 
   return (
@@ -395,17 +380,7 @@ const Lootbox: FC = () => {
       padding="20px 40px"
       spacing={5}
     >
-      {/* <Image src="avatar1.png" alt="" />
-      <Button bgColor="accent" color="white" maxW="380px" onClick={init}>
-        <Text>Init</Text>
-      </Button>
-      <Button bgColor="accent" color="white" maxW="380px" onClick={request}>
-        <Text>Request</Text>
-      </Button>
-      <Button bgColor="accent" color="white" maxW="380px" onClick={redeem}>
-        <Text>Redeem</Text>
-      </Button> */}
-      {user ? (
+      {userAccountExist ? (
         <VStack>
           {redeemable ? (
             <Button

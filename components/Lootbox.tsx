@@ -445,7 +445,7 @@ const Lootbox: FC = () => {
         <VStack>
           {redeemable ? (
             <Button
-              bgColor="green"
+              bgColor="accent"
               color="white"
               maxW="380px"
               onClick={redeem}
@@ -455,7 +455,7 @@ const Lootbox: FC = () => {
             </Button>
           ) : (
             <Button
-              bgColor="blue"
+              bgColor="accent"
               color="white"
               maxW="380px"
               onClick={request}

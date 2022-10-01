@@ -46,7 +46,7 @@ const WorkspaceProvider = ({ children }: any) => {
   const wallet = useAnchorWallet() || MockWallet
   const { connection } = useConnection()
 
-  const provider = useMemo(() => new AnchorProvider(connection, wallet, {}), [])
+  const provider = new AnchorProvider(connection, wallet, {})
   setProvider(provider)
 
   const [programSwitchboard, setProgramSwitchboard] = useState<any>()
@@ -67,7 +67,7 @@ const WorkspaceProvider = ({ children }: any) => {
       setProgramSwitchboard(result)
       console.log("result", result)
     })
-  }, [provider])
+  }, [connection])
 
   const workspace = {
     connection,
